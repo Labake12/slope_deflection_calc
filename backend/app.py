@@ -5,9 +5,9 @@ from slope_deflection_calculations import get_user_input, calculate_fem, slope_d
 app = Flask(__name__)
 CORS(app)
 
-@app.route("/")
-def home_page():
-  return render_template('index.html')@app.route("/")
+# @app.route("/")
+# def home_page():
+#   return render_template('index.html')@app.route("/")
 
 @app.route('/api/beam-analysis', methods=['POST'])
 def beam_analysis():
