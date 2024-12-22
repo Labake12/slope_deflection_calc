@@ -1,41 +1,41 @@
-def get_user_input():
-    print("=== Beam Analysis: Input Beam and Loading Details ===\n")
+from flask import Flask,render_template, request, jsonify
+from flask_cors import CORS
+from slope_deflection_calculations import get_user_input, calculate_fem, slope_deflection_method, apply_boundary_conditions
+
+app = Flask(__name__)
+CORS(app)
+
+@app.route("/")
+def home_page():
+  return render_template('index.html')@app.route("/")
+
+@app.route('/api/beam-analysis', methods=['POST'])
+def beam_analysis():
+    try:
+        # Get the JSON data from the request body
+        data = request.get_json()
+
+        # Assuming the input is structured like this:
+        supports = data.get('supports', [])
+        spans = data.get('spans', [])
+
+        # Calculate Fixed-End Moments
+        fem_results = calculate_fem(supports, spans)
+
+        # Perform Slope Deflection Analysis
+        slope_deflection_results = slope_deflection_method(fem_results, spans)
+
+        # Apply Boundary Conditions
+        adjusted_results = apply_boundary_conditions(slope_deflection_results, supports)
+
+        return jsonify({
+            "fem_results": fem_results,
+            "slope_deflection_results": slope_deflection_results,
+            "adjusted_results": adjusted_results
+        })
     
-    # Get Flexural Rigidity and Length of Beam
-    EI = float(input("Enter the flexural rigidity (EI) in kNm^2: "))
-    length = float(input("Enter the length of the beam (m): "))
-    
-    # Choose load type
-    load_type = input("Enter load type (point/udl/vdl/unequal_point/cantilever): ").strip().lower()
-    
-    load_params = {}
-    
-    if load_type == "point":
-        load_params["P"] = float(input("Enter the point load magnitude (kN): "))
-        load_params["a"] = float(input("Enter the distance of the point load from the left end (m): "))
-    
-    elif load_type == "udl":
-        load_params["w"] = float(input("Enter the UDL intensity (kN/m): "))
-    
-    elif load_type == "vdl":
-        load_params["w"] = float(input("Enter the maximum intensity of the triangular load (kN/m): "))
-    
-    elif load_type == "unequal_point":
-        num_loads = int(input("Enter the number of point loads: "))
-        loads = []
-        for i in range(num_loads):
-            P = float(input(f"Enter magnitude of load {i+1} (kN): "))
-            a = float(input(f"Enter distance of load {i+1} from the left end (m): "))
-            loads.append((P, a))
-        load_params["loads"] = loads
-    
-    elif load_type == "cantilever":
-        load_params["P"] = float(input("Enter the point load magnitude (kN): "))
-        load_params["a"] = float(input("Enter the distance of the point load from the fixed end (m): "))
-    
-    else:
-        raise ValueError("Invalid load type entered.")
-    
-    # Get support conditions
-    supports = input("Enter the support conditions (e.g., fixed-fixed, fixed-hinged): ").strip().lower()
-    return EI, length, load_type, load_params, supports
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+if __name__ == "__main__":
+    app.run(debug=True)

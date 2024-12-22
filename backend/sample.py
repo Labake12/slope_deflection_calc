@@ -89,29 +89,27 @@ def assemble_stiffness_matrix(supports, spans, fem_results):
         EI = spans[i]['EI']
         FEM_AB = fem_results.get(f"FEM_{span_name_start}{span_name_end}", 0)
         FEM_BA = fem_results.get(f"FEM_{span_name_end}{span_name_start}", 0)
-
+        
+        print(f"Processing span {span_name_start}-{span_name_end} with length {length}, EI={EI}")
+        print(f"  FEM_AB: {FEM_AB}, FEM_BA: {FEM_BA}")
+        
         if f"theta_{span_name_start}" in unknown_thetas:
             row_index = unknown_thetas.index(f"theta_{span_name_start}")
             stiffness_matrix[row_index, row_index] += 4 * EI / length
             load_vector[row_index] -= FEM_AB
-            if i > 0 and f"theta_{chr(65 + i - 1)}" in unknown_thetas:
-                prev_length = spans[i - 1]['length']
-                prev_EI = spans[i - 1]['EI']
-                col_index = unknown_thetas.index(f"theta_{chr(65 + i - 1)}")
-                stiffness_matrix[row_index, col_index] += 2 * prev_EI / prev_length
-                load_vector[row_index] -= fem_results.get(f"FEM_{chr(65 + i)}{chr(65 + i - 1)}", 0)
-        if f"theta_{span_name_end}" in unknown_thetas and i < len(spans) - 1:
+        if f"theta_{span_name_end}" in unknown_thetas:
             row_index = unknown_thetas.index(f"theta_{span_name_end}")
-            next_length = spans[i+1]['length']
-            next_EI = spans[i+1]['EI']
-            col_index = unknown_thetas.index(f"theta_{chr(65+i+1)}")
-            stiffness_matrix[row_index, col_index] += 2 * next_EI / next_length
-            load_vector[row_index] -= fem_results.get(f"FEM_{chr(66+i)}{chr(65+i)}", 0)
+            stiffness_matrix[row_index, row_index] += 4 * EI / length
+            load_vector[row_index] -= FEM_BA
 
+    print("\nStiffness Matrix (K):")
+    print(stiffness_matrix)
+    print("\nLoad Vector (Q):")
+    print(load_vector)
     return stiffness_matrix, load_vector, unknown_thetas
 
 def shear_force_and_bending_moment(load_type, load_params, length, moment_start, moment_end):
-    x = np.linspace(0, length, 50)  # Increased points for smoother plots
+    x = np.linspace(0, length, 50)
     shear_force = np.zeros_like(x)
     bending_moment = np.zeros_like(x)
 
@@ -122,26 +120,17 @@ def shear_force_and_bending_moment(load_type, load_params, length, moment_start,
         reaction_B = P - reaction_A
     elif load_type == "udl":
         w = load_params["w"]
-        total_load = w * length
-        reaction_A = total_load / 2
-        reaction_B = total_load / 2
+        reaction_A = reaction_B = w * length / 2
     elif load_type == "vdl":
         w = load_params["w"]
-        total_load = 0.5 * w * length
-        reaction_A = total_load / 3
-        reaction_B = 2 * total_load / 3
-    elif load_type == "none":
-        reaction_A = 0
-        reaction_B = 0
+        reaction_A = (w * length) / 3
+        reaction_B = (2 * w * length) / 3
     else:
-        raise ValueError("Unsupported load type for reactions.")
-    
-    adjusted_reaction_A = reaction_A + (moment_end - moment_start)/length
-    #adjusted_reaction_B = reaction_B - (moment_end - moment_start)/length #Not needed
+        reaction_A = reaction_B = 0
+
+    adjusted_reaction_A = reaction_A + (moment_end - moment_start) / length
 
     if load_type == "point":
-        P = load_params["P"]
-        a = load_params["a"]
         shear_force[x < a] = adjusted_reaction_A
         shear_force[x >= a] = adjusted_reaction_A - P
         bending_moment[x < a] = moment_start + adjusted_reaction_A * x[x < a]
@@ -152,17 +141,12 @@ def shear_force_and_bending_moment(load_type, load_params, length, moment_start,
         bending_moment = moment_start + adjusted_reaction_A * x - (w * x**2) / 2
     elif load_type == "vdl":
         w = load_params["w"]
-        shear_force = adjusted_reaction_A - (w*x**2)/(2*length)
-        bending_moment = moment_start + adjusted_reaction_A * x - (w*x**3)/(6*length)
-    elif load_type == "none":
-        pass
-    else:
-        raise ValueError("Unsupported load type for shear and bending moment calculation.")
+        shear_force = adjusted_reaction_A - (w * x**2) / (2 * length)
+        bending_moment = moment_start + adjusted_reaction_A * x - (w * x**3) / (6 * length)
 
     return shear_force, bending_moment, x
 
 def plot_shear_bending(shear_force, bending_moment, x, start_node, end_node):
-    """Plot the Shear Force and Bending Moment diagrams."""
     plt.figure(figsize=(12, 6))
     plt.suptitle(f"Shear Force and Bending Moment Diagrams (Span {start_node}-{end_node})")
 
@@ -197,13 +181,16 @@ if __name__ == "__main__":
         FEM_AB, FEM_BA = fixed_end_moments(span['load_type'], span['load_params'], span['length'])
         fem_results[f"FEM_{start_node}{end_node}"] = FEM_AB
         fem_results[f"FEM_{end_node}{start_node}"] = FEM_BA
-        print(f"FEM {start_node}{end_node}: {FEM_AB:.2f}, FEM {end_node}{start_node}: {FEM_BA:.2f}")
+        print(f"Span {start_node}-{end_node} Fixed End Moments:")
+        print(f"  FEM_{start_node}{end_node}: {FEM_AB:.2f} kNm, FEM_{end_node}{start_node}: {FEM_BA:.2f} kNm")
 
     stiffness_matrix, load_vector, unknown_thetas = assemble_stiffness_matrix(supports, spans, fem_results)
-    
+
     if unknown_thetas:
         theta_solutions = solve(Eq(stiffness_matrix * Matrix(symbols(unknown_thetas)), -load_vector), symbols(unknown_thetas), dict=True)
-        print("Theta Solutions:", theta_solutions)
+        print("\nTheta Solutions (Rotations at Supports):")
+        for theta, value in theta_solutions[0].items():
+            print(f"  {theta}: {value:.6f} radians")
     else:
         print("No unknown thetas (all supports are fixed).")
         theta_solutions = [{}]
@@ -224,11 +211,11 @@ if __name__ == "__main__":
         theta_end_val = theta_solutions[0].get(symbols(f"theta_{end_node}"), 0)
         EI = span["EI"]
 
-        moment_start = (2*theta_start_val + theta_end_val) * EI / length + fem_results[f"FEM_{start_node}{end_node}"]
-        moment_end = (theta_start_val + 2*theta_end_val) * EI / length + fem_results[f"FEM_{end_node}{start_node}"]
+        moment_start = (2 * theta_start_val + theta_end_val) * EI / length + fem_results[f"FEM_{start_node}{end_node}"]
+        moment_end = (theta_start_val + 2 * theta_end_val) * EI / length + fem_results[f"FEM_{end_node}{start_node}"]
 
-        reactions[start_node] += reaction_start + (moment_end - moment_start)/length
-        reactions[end_node] += reaction_end - (moment_end - moment_start)/length
+        reactions[start_node] += reaction_start + (moment_end - moment_start) / length
+        reactions[end_node] += reaction_end - (moment_end - moment_start) / length
 
         shear_force, bending_moment, x = shear_force_and_bending_moment(load_type, load_params, length, moment_start, moment_end)
         plot_shear_bending(shear_force, bending_moment, x, start_node, end_node)
@@ -238,10 +225,10 @@ if __name__ == "__main__":
         print(f"    R{start_node}: {reaction_start:.2f} kN, R{end_node}: {reaction_end:.2f} kN")
         print(f"  Moments:")
         print(f"    M{start_node}{end_node}: {moment_start:.2f} kNm, M{end_node}{start_node}: {moment_end:.2f} kNm")
-        print("  Shear Force and Bending Moment Values:")
+        print("\nShear Force and Bending Moment along the span:")
         for j in range(len(x)):
-            print(f"    x = {x[j]:.2f} m: SF = {shear_force[j]:.2f} kN, BM = {bending_moment[j]:.2f} kNm")
+            print(f"  x = {x[j]:.2f} m: SF = {shear_force[j]:.2f} kN, BM = {bending_moment[j]:.2f} kNm")
 
-    print("\nFinal Support Reactions (After Moment Distribution):")
+    print("\nFinal Support Reactions:")
     for support, reaction in reactions.items():
-        print(f"Reaction at {support}: {reaction:.2f} kN")
+        print(f"  Reaction at {support}: {reaction:.2f} kN")
