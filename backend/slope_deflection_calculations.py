@@ -89,13 +89,15 @@ def slope_deflection_method(fem_results, spans):
 
     return moments
 
-def apply_boundary_conditions(moments, supports):
+
+def apply_boundary_conditions(moments, supports, spans):
     """
     Apply boundary conditions for a beam with supports.
 
     Parameters:
     moments (dict): Dictionary containing slope deflection equations for each span.
     supports (list): List of support details, each containing the type and position.
+    spans (list): List of span details, including length, EI, load type, and load parameters.
 
     Returns:
     dict: Adjusted moments after applying boundary conditions.
@@ -138,7 +140,7 @@ def apply_boundary_conditions(moments, supports):
             else:  # Intermediate supports
                 prev_support = chr(65 + i - 1)
                 next_support = chr(65 + i + 1)
-                print (prev_support)
+                print(prev_support)
 
                 if support["type"] == "hinged":
                     eq_intermediate = Eq(
@@ -169,30 +171,85 @@ def apply_boundary_conditions(moments, supports):
 
     return adjusted_results
 
-
 # Main
+# if __name__ == "__main__":
+#     print("Welcome to the Beam Analysis Program!")
+
+#     # Collect User Input
+#     supports, spans = get_user_input()
+
+#     # Calculate Fixed-End Moments (FEM)
+#     print("\n--- Calculating Fixed-End Moments (FEM) ---")
+#     fem_results = calculate_fem(supports, spans)
+
+#     # Display Fixed-End Moments (FEM)
+#     print("\n--- Displaying Fixed-End Moments ---")
+#     for key, value in fem_results.items():
+#         print(f"{key}: {value} kNm")
+
+#     # Perform Slope Deflection Analysis (Calculate Slope Deflection Equations)
+#     print("\n--- Slope Deflection Equations ---")
+#     slope_deflection_results = slope_deflection_method(fem_results, spans)
+
+#     # Display Slope Deflection Equations
+#     for eq, expression in slope_deflection_results.items():
+#         print(f"{eq}: {expression}")
+
+#     # Apply Boundary Conditions and adjust results
+#     print("\n--- Applying Boundary Conditions ---")
+#     adjusted_results = apply_boundary_conditions(slope_deflection_results, supports, spans)
+
+#     # Display Final Adjusted Results (After applying Boundary Conditions)
+#     print("\n--- Final Adjusted Results ---")
+#     for eq, value in adjusted_results.items():
+#         print(f"{eq}: {value}")
+
+#     print("\nAnalysis Complete!")
+
 if __name__ == "__main__":
     print("Welcome to the Beam Analysis Program!")
+
+    # Collect User Input
     supports, spans = get_user_input()
 
-    # Calculate Fixed-End Moments
+    # Calculate Fixed-End Moments (FEM)
     print("\n--- Calculating Fixed-End Moments (FEM) ---")
     fem_results = calculate_fem(supports, spans)
+
+    # Display Fixed-End Moments (FEM)
+    print("\n--- Displaying Fixed-End Moments ---")
     for key, value in fem_results.items():
         print(f"{key}: {value} kNm")
 
-    # Perform Slope Deflection Analysis
+    # Perform Slope Deflection Analysis (Calculate Slope Deflection Equations)
     print("\n--- Slope Deflection Equations ---")
     slope_deflection_results = slope_deflection_method(fem_results, spans)
+
+    # Display Slope Deflection Equations
     for eq, expression in slope_deflection_results.items():
         print(f"{eq}: {expression}")
 
     # Apply Boundary Conditions
-    adjusted_results = apply_boundary_conditions(slope_deflection_results, supports)
+    print("\n--- Applying Boundary Conditions ---")
+    boundary_condition_equations = apply_boundary_conditions(slope_deflection_results, supports)
 
-    # Display Final Adjusted Results
-    print("\n--- Final Adjusted Results ---")
-    for eq, value in adjusted_results.items():
-        print(f"{eq}: {value}")
+    # Display Boundary Conditions
+    print("\n--- Boundary Condition Equations ---")
+    for eq in boundary_condition_equations:
+        print(eq)
+
+    # Solve the System of Equations (if needed)
+    print("\n--- Solving Final System of Equations ---")
+    if boundary_condition_equations:
+        from sympy import solve
+        variables = slope_deflection_results.keys()
+        solved_results = solve(boundary_condition_equations, *variables)
+
+        # Display Final Adjusted Results (After applying Boundary Conditions)
+        print("\n--- Final Adjusted Results ---")
+        for var, value in solved_results.items():
+            print(f"{var}: {value} kNm")
+    else:
+        print("No boundary conditions to apply. Results remain unchanged.")
 
     print("\nAnalysis Complete!")

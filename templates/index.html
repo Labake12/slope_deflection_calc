@@ -1,57 +1,58 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Beam Analysis Calculator</title>
-    <link rel="stylesheet" href="{{ url_for('static',filename='style.css') }}" />
-    <script src="{{ url_for('static',filename='script.js') }}"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/10.0.0/math.min.js"></script>
-  </head>
-  <body>
-    <form id="beamForm">
-      <h2>Beam Analysis Input</h2>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beam Analysis</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <!-- Navigation Bar with Links -->
+    <nav>
+        <h1>Beam Analysis Calculator</h1>
+        <ul class="nav-links">
+            <li><a href="/home">Home</a></li>
+            <li><a href="/">Calculator</a></li>
+        </ul>
+    </nav>
 
-      <!-- Number of Supports -->
-      <label for="numSupports">Number of Supports:</label>
-      <input type="number" id="numSupports" name="numSupports" required /><br />
+    <div class="container">
+        <!-- Form Section -->
+        <form action="/" method="POST">
+            <h2>Enter Beam Details</h2>
 
-      <!-- Number of Internal Joints -->
-      <label for="numJoints">Number of Internal Joints:</label>
-      <input type="number" id="numJoints" name="numJoints" required /><br />
-      <hr />
-      <!-- Spans Information -->
-      <label for="numSpans">Number of Spans:</label>
-      <input type="number" id="numSpans" name="numSpans" required /><br />
+            <label for="total_spans">Total Number of Spans:</label>
+            <input type="number" id="total_spans" name="total_spans" min="1" required><br><br>
 
-      <!-- Dynamic Span Information -->
-      <div id="spanDetails"></div>
-      <hr />
+            <div id="span_details_container"></div>
 
-      <!-- Settlement Information -->
-      <label for="settlement">Is there any settlement?</label>
-      <select id="settlement" name="settlement">
-        <option value="yes">Yes</option>
-        <option value="no" selected>No</option></select
-      ><br />
-      <div id="settlementDetails"></div>
+            <button type="submit">Calculate</button>
+        </form>
 
-      <!-- Fixed Nodes Information -->
-      <label for="firstNodeFixed">Is the first node fixed?</label>
-      <select id="firstNodeFixed" name="firstNodeFixed">
-        <option value="yes">Yes</option>
-        <option value="no" selected>No</option></select
-      ><br />
+        <!-- Results Section -->
+        {% if results %}
+        <div class="results-container">
+            <h2>Results</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Equation</th>
+                        <th>Expression</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for eq, value in results.items() %}
+                    <tr>
+                        <td>{{ eq }}</td>
+                        <td>{{ value }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
 
-      <label for="lastNodeFixed">Is the last node fixed?</label>
-      <select id="lastNodeFixed" name="lastNodeFixed">
-        <option value="yes">Yes</option>
-        <option value="no" selected>No</option></select
-      ><br />
-
-      <button type="submit">Submit</button>
-    </form>
-
-
-  </body>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
 </html>
