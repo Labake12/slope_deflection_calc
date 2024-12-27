@@ -1,234 +1,197 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from sympy import symbols, Eq, solve, Matrix
 
-def fixed_end_moments(load_type, load_params, length):
-    if load_type == "point":
-        P = load_params["P"]
-        a = load_params["a"]
-        b = length - a
-        FEM_AB = -P * b**2 * a / length**2
-        FEM_BA = P * a**2 * b / length**2
-    elif load_type == "udl":
-        w = load_params["w"]
-        FEM_AB = -w * length**2 / 12
-        FEM_BA = w * length**2 / 12
-    elif load_type == "vdl":
-        w = load_params["w"]
-        FEM_AB = -w * length**2 / 20
-        FEM_BA = w * length**2 / 30
-    elif load_type == "none":
-        FEM_AB = 0
-        FEM_BA = 0
-    else:
-        raise ValueError("Unsupported load type.")
-    return FEM_AB, FEM_BA
+class BeamAnalysis:
+    def __init__(self):
+        self.supports = []
+        self.spans = []
 
-def calculate_reactions(load_type, load_params, length):
-    if load_type == "point":
-        P = load_params["P"]
-        a = load_params["a"]
-        reaction_A = (P * (length - a)) / length
-        reaction_B = P - reaction_A
-    elif load_type == "udl":
-        w = load_params["w"]
-        total_load = w * length
-        reaction_A = total_load / 2
-        reaction_B = total_load / 2
-    elif load_type == "vdl":
-        w = load_params["w"]
-        total_load = 0.5 * w * length
-        reaction_A = total_load / 3
-        reaction_B = 2 * total_load / 3
-    elif load_type == "none":
-        reaction_A = 0
-        reaction_B = 0
-    else:
-        raise ValueError("Unsupported load type for reactions.")
-    return reaction_A, reaction_B
+    def input_supports(self):
+        num_supports = int(input("Enter the number of supports (minimum 2): "))
+        for i in range(num_supports):
+            support_type = input(f"Enter the type of support {i + 1} (hinged, fixed, roller): ").strip().lower()
+            position = float(input(f"Enter the position of support {i + 1}: "))
+            self.supports.append({"type": support_type, "position": position})
+        print("Supports configured successfully.\n")
 
-def get_user_input():
-    num_supports = int(input("Enter the number of supports (minimum 2): "))
-    supports = []
-    for i in range(num_supports):
-        support_type = input(f"Enter the type of support {i + 1} (hinged, fixed, roller): ").lower()
-        position = float(input(f"Enter the position of support {i + 1}: "))
-        supports.append({"type": support_type, "position": position})
+    def input_spans(self):
+        num_spans = len(self.supports) - 1
+        for i in range(num_spans):
+            ei = float(input(f"Enter EI for span {i + 1}: "))
+            load_type = input(f"Enter load type for span {i + 1} (point, udl, vdl, none): ").strip().lower()
+            load_data = {}
+            if load_type == "point":
+                load_data["magnitude"] = float(input("Enter point load magnitude: "))
+                load_data["position"] = float(input("Enter point load position from left: "))
+            elif load_type == "udl":
+                load_data["magnitude"] = float(input("Enter UDL magnitude: "))
+            elif load_type == "vdl":
+                load_data["magnitude_start"] = float(input("Enter VDL magnitude at the start: "))
+                load_data["magnitude_end"] = float(input("Enter VDL magnitude at the end: "))
+            self.spans.append({"EI": ei, "load_type": load_type, "load_data": load_data})
+        print("Spans configured successfully.\n")
 
-    supports.sort(key=lambda x: x['position'])
-    spans = []
-    for i in range(len(supports) - 1):
-        length = supports[i+1]['position'] - supports[i]['position']
-        EI = float(input(f"Enter EI for span {i+1}: "))
-        load_type = input(f"Enter load type for span {i+1} (point, udl, vdl, none): ").lower()
-        load_params = {}
-        if load_type == 'point':
-            load_params['P'] = float(input("Enter point load magnitude: "))
-            load_params['a'] = float(input("Enter point load position from left: "))
-        elif load_type == 'udl':
-            load_params['w'] = float(input("Enter UDL magnitude: "))
-        elif load_type == 'vdl':
-            load_params['w'] = float(input("Enter VDL max magnitude: "))
-        spans.append({"length": length, "EI": EI, "load_type": load_type, "load_params": load_params})
-    return supports, spans
+    def calculate_fixed_end_moments(self):
+        print("Calculating Fixed-End Moments (FEM)...")
+        self.fixed_end_moments = []
+        for i, span in enumerate(self.spans):
+            fem = {}
+            l = self.supports[i + 1]["position"] - self.supports[i]["position"]
+            if span["load_type"] == "udl":
+                w = span["load_data"]["magnitude"]
+                fem["AB"] = -w * l**2 / 12
+                fem["BA"] = w * l**2 / 12
+            elif span["load_type"] == "point":
+                p = span["load_data"]["magnitude"]
+                a = span["load_data"]["position"]
+                b = l - a
+                fem["AB"] = -p * a * b**2 / l**2
+                fem["BA"] = p * a**2 * b / l**2
+            elif span["load_type"] == "vdl":
+                w1 = span["load_data"]["magnitude_start"]
+                w2 = span["load_data"]["magnitude_end"]
+                fem["AB"] = -(w1 + w2) * l**2 / 20
+                fem["BA"] = (w1 + w2) * l**2 / 20
+            else:
+                fem["AB"] = fem["BA"] = 0
+            self.fixed_end_moments.append(fem)
+        print("Fixed-End Moments (FEM):", self.fixed_end_moments, "\n")
 
-def assemble_stiffness_matrix(supports, spans, fem_results):
-    unknown_thetas = []
-    for i in range(1, len(supports) - 1):
-        if supports[i]['type'] != 'fixed':
-            unknown_thetas.append(f"theta_{chr(65 + i)}")
-
-    num_unknowns = len(unknown_thetas)
-    stiffness_matrix = Matrix(np.zeros((num_unknowns, num_unknowns)))
-    load_vector = Matrix(np.zeros((num_unknowns, 1)))
-
-    for i in range(len(spans)):
-        span_name_start = chr(65 + i)
-        span_name_end = chr(66 + i)
-        length = spans[i]['length']
-        EI = spans[i]['EI']
-        FEM_AB = fem_results.get(f"FEM_{span_name_start}{span_name_end}", 0)
-        FEM_BA = fem_results.get(f"FEM_{span_name_end}{span_name_start}", 0)
+    def solve_theta_values(self):
+        print("Solving for Theta Values...")
+        num_supports = len(self.supports)
+        unknown_indices = [i for i, support in enumerate(self.supports) if support["type"] in ("hinged", "roller")]
+        num_unknowns = len(unknown_indices)
         
-        print(f"Processing span {span_name_start}-{span_name_end} with length {length}, EI={EI}")
-        print(f"  FEM_AB: {FEM_AB}, FEM_BA: {FEM_BA}")
+        coeff_matrix = np.zeros((num_unknowns, num_unknowns))
+        constants = np.zeros(num_unknowns)
         
-        if f"theta_{span_name_start}" in unknown_thetas:
-            row_index = unknown_thetas.index(f"theta_{span_name_start}")
-            stiffness_matrix[row_index, row_index] += 4 * EI / length
-            load_vector[row_index] -= FEM_AB
-        if f"theta_{span_name_end}" in unknown_thetas:
-            row_index = unknown_thetas.index(f"theta_{span_name_end}")
-            stiffness_matrix[row_index, row_index] += 4 * EI / length
-            load_vector[row_index] -= FEM_BA
+        for i in range(len(self.spans)):
+            l = self.supports[i + 1]["position"] - self.supports[i]["position"]
+            ei = self.spans[i]["EI"]
+            m_fab = self.fixed_end_moments[i]["AB"]
+            m_fba = self.fixed_end_moments[i]["BA"]
 
-    print("\nStiffness Matrix (K):")
-    print(stiffness_matrix)
-    print("\nLoad Vector (Q):")
-    print(load_vector)
-    return stiffness_matrix, load_vector, unknown_thetas
+            if self.supports[i]["type"] in ("hinged", "roller"):
+                current_idx = unknown_indices.index(i)
+                coeff_matrix[current_idx, current_idx] += 4 * ei / l
+                constants[current_idx] -= m_fab
+                if self.supports[i + 1]["type"] in ("hinged", "roller"):
+                    next_idx = unknown_indices.index(i + 1)
+                    coeff_matrix[current_idx, next_idx] += 2 * ei / l
 
-def shear_force_and_bending_moment(load_type, load_params, length, moment_start, moment_end):
-    x = np.linspace(0, length, 50)
-    shear_force = np.zeros_like(x)
-    bending_moment = np.zeros_like(x)
+            if self.supports[i + 1]["type"] in ("hinged", "roller"):
+                next_idx = unknown_indices.index(i + 1)
+                coeff_matrix[next_idx, next_idx] += 4 * ei / l
+                constants[next_idx] -= m_fba
+                if self.supports[i]["type"] in ("hinged", "roller"):
+                    current_idx = unknown_indices.index(i)
+                    coeff_matrix[next_idx, current_idx] += 2 * ei / l
 
-    if load_type == "point":
-        P = load_params["P"]
-        a = load_params["a"]
-        reaction_A = (P * (length - a)) / length
-        reaction_B = P - reaction_A
-    elif load_type == "udl":
-        w = load_params["w"]
-        reaction_A = reaction_B = w * length / 2
-    elif load_type == "vdl":
-        w = load_params["w"]
-        reaction_A = (w * length) / 3
-        reaction_B = (2 * w * length) / 3
-    else:
-        reaction_A = reaction_B = 0
+        try:
+            theta_unknowns = np.linalg.solve(coeff_matrix, constants)
+        except np.linalg.LinAlgError:
+            print("Error: Singular matrix. Check input data or boundary conditions.")
+            return
 
-    adjusted_reaction_A = reaction_A + (moment_end - moment_start) / length
+        self.theta_values = np.zeros(num_supports)
+        for i, idx in enumerate(unknown_indices):
+            self.theta_values[idx] = theta_unknowns[i]
 
-    if load_type == "point":
-        shear_force[x < a] = adjusted_reaction_A
-        shear_force[x >= a] = adjusted_reaction_A - P
-        bending_moment[x < a] = moment_start + adjusted_reaction_A * x[x < a]
-        bending_moment[x >= a] = moment_start + adjusted_reaction_A * x[x >= a] - P * (x[x >= a] - a)
-    elif load_type == "udl":
-        w = load_params["w"]
-        shear_force = adjusted_reaction_A - w * x
-        bending_moment = moment_start + adjusted_reaction_A * x - (w * x**2) / 2
-    elif load_type == "vdl":
-        w = load_params["w"]
-        shear_force = adjusted_reaction_A - (w * x**2) / (2 * length)
-        bending_moment = moment_start + adjusted_reaction_A * x - (w * x**3) / (6 * length)
+        print("Theta Values (Slopes):", self.theta_values, "\n")
 
-    return shear_force, bending_moment, x
+    def calculate_final_moments(self):
+        print("Calculating Final Moments for Each Span...")
+        self.final_moments = {}
+        for i in range(len(self.spans)):
+            l = self.supports[i + 1]["position"] - self.supports[i]["position"]
+            ei = self.spans[i]["EI"]
+            theta_a = self.theta_values[i]
+            theta_b = self.theta_values[i + 1]
+            m_fab = self.fixed_end_moments[i]["AB"]
+            m_fba = self.fixed_end_moments[i]["BA"]
 
-def plot_shear_bending(shear_force, bending_moment, x, start_node, end_node):
-    plt.figure(figsize=(12, 6))
-    plt.suptitle(f"Shear Force and Bending Moment Diagrams (Span {start_node}-{end_node})")
+            # Calculate moments for the span
+            m_ab = m_fab + (2 * ei / l) * (2 * theta_a + theta_b)
+            m_ba = m_fba + (2 * ei / l) * (theta_a + 2 * theta_b)
 
-    plt.subplot(2, 1, 1)
-    plt.plot(x, shear_force, label="Shear Force (kN)")
-    plt.axhline(0, color='black', linestyle='--', linewidth=0.8)
-    plt.title("Shear Force Diagram")
-    plt.xlabel("Distance (m)")
-    plt.ylabel("Shear Force (kN)")
-    plt.grid(True)
-    plt.legend()
+            # Store moments
+            self.final_moments[f"M{i + 1}_AB"] = m_ab
+            self.final_moments[f"M{i + 1}_BA"] = m_ba
 
-    plt.subplot(2, 1, 2)
-    plt.plot(x, bending_moment, label="Bending Moment (kNm)", color="red")
-    plt.axhline(0, color='black', linestyle='--', linewidth=0.8)
-    plt.title("Bending Moment Diagram")
-    plt.xlabel("Distance (m)")
-    plt.ylabel("Bending Moment (kNm)")
-    plt.grid(True)
-    plt.legend()
+        print("Final Moments :")
+        for key, value in self.final_moments.items():
+            print(f"{key}: {value:.3f} kNm")
 
-    plt.tight_layout()
-    plt.show()
+    def calculate_reactions(self):
+        print("Calculating Reactions...")
+        num_supports = len(self.supports)
+        reaction_matrix = np.zeros((num_supports, num_supports))
+        constants = np.zeros(num_supports)
 
-if __name__ == "__main__":
-    supports, spans = get_user_input()
+        # Loop through spans to distribute loads and moments to supports
+        for i in range(len(self.spans)):
+            l = self.supports[i + 1]["position"] - self.supports[i]["position"]
+            load_type = self.spans[i]["load_type"]
+            load_data = self.spans[i]["load_data"]
 
-    fem_results = {}
-    for i, span in enumerate(spans):
-        start_node = chr(65 + i)
-        end_node = chr(66 + i)
-        FEM_AB, FEM_BA = fixed_end_moments(span['load_type'], span['load_params'], span['length'])
-        fem_results[f"FEM_{start_node}{end_node}"] = FEM_AB
-        fem_results[f"FEM_{end_node}{start_node}"] = FEM_BA
-        print(f"Span {start_node}-{end_node} Fixed End Moments:")
-        print(f"  FEM_{start_node}{end_node}: {FEM_AB:.2f} kNm, FEM_{end_node}{start_node}: {FEM_BA:.2f} kNm")
+            # Contribution of fixed-end moments to reactions
+            reaction_matrix[i, i] += 1
+            constants[i] -= self.fixed_end_moments[i]["AB"]
+            reaction_matrix[i + 1, i + 1] += 1
+            constants[i + 1] -= self.fixed_end_moments[i]["BA"]
 
-    stiffness_matrix, load_vector, unknown_thetas = assemble_stiffness_matrix(supports, spans, fem_results)
+            # Add load contributions
+            if load_type == "point":
+                p = load_data["magnitude"]
+                a = load_data["position"]
+                b = l - a
+                reaction_matrix[i, i] += b / l
+                reaction_matrix[i + 1, i + 1] += a / l
+                constants[i] -= p * (b / l)
+                constants[i + 1] -= p * (a / l)
+            elif load_type == "udl":
+                w = load_data["magnitude"]
+                reaction_matrix[i, i] += w * l / 2
+                reaction_matrix[i + 1, i + 1] += w * l / 2
+                constants[i] -= w * l / 2
+                constants[i + 1] -= w * l / 2
+            elif load_type == "vdl":
+                w1 = load_data["magnitude_start"]
+                w2 = load_data["magnitude_end"]
+                avg_w = (w1 + w2) / 2
+                reaction_matrix[i, i] += avg_w * l / 2
+                reaction_matrix[i + 1, i + 1] += avg_w * l / 2
+                constants[i] -= avg_w * l / 2
+                constants[i + 1] -= avg_w * l / 2
 
-    if unknown_thetas:
-        theta_solutions = solve(Eq(stiffness_matrix * Matrix(symbols(unknown_thetas)), -load_vector), symbols(unknown_thetas), dict=True)
-        print("\nTheta Solutions (Rotations at Supports):")
-        for theta, value in theta_solutions[0].items():
-            print(f"  {theta}: {value:.6f} radians")
-    else:
-        print("No unknown thetas (all supports are fixed).")
-        theta_solutions = [{}]
+        # Solve for reactions
+        try:
+            reactions = np.linalg.solve(reaction_matrix, constants)
+        except np.linalg.LinAlgError:
+            print("Error: Singular matrix. Check input data or boundary conditions.")
+            return
 
-    reactions = {}
-    for i, support in enumerate(supports):
-        reactions[chr(65 + i)] = 0
+        # Assign reactions to supports
+        for i in range(num_supports):
+            self.supports[i]["reaction"] = reactions[i]
 
-    for i, span in enumerate(spans):
-        start_node = chr(65 + i)
-        end_node = chr(66 + i)
-        load_type = span["load_type"]
-        load_params = span["load_params"]
-        length = span["length"]
-        reaction_start, reaction_end = calculate_reactions(load_type, load_params, length)
+        # Display reactions
+        print("Reactions:")
+        for i, support in enumerate(self.supports):
+            print(f"Reaction at Support {i + 1} (Position {support['position']} m): {support['reaction']:.3f} kN")
 
-        theta_start_val = theta_solutions[0].get(symbols(f"theta_{start_node}"), 0)
-        theta_end_val = theta_solutions[0].get(symbols(f"theta_{end_node}"), 0)
-        EI = span["EI"]
 
-        moment_start = (2 * theta_start_val + theta_end_val) * EI / length + fem_results[f"FEM_{start_node}{end_node}"]
-        moment_end = (theta_start_val + 2 * theta_end_val) * EI / length + fem_results[f"FEM_{end_node}{start_node}"]
 
-        reactions[start_node] += reaction_start + (moment_end - moment_start) / length
-        reactions[end_node] += reaction_end - (moment_end - moment_start) / length
+    def analyze(self):
+        self.input_supports()
+        self.input_spans()
+        self.calculate_fixed_end_moments()
+        self.solve_theta_values()
+        self.calculate_final_moments()
+        self.calculate_reactions()
+        # Add other components like reactions and plotting here as needed.
 
-        shear_force, bending_moment, x = shear_force_and_bending_moment(load_type, load_params, length, moment_start, moment_end)
-        plot_shear_bending(shear_force, bending_moment, x, start_node, end_node)
-
-        print(f"\nSpan {start_node}-{end_node}:")
-        print(f"  Initial Reactions (before moment distribution):")
-        print(f"    R{start_node}: {reaction_start:.2f} kN, R{end_node}: {reaction_end:.2f} kN")
-        print(f"  Moments:")
-        print(f"    M{start_node}{end_node}: {moment_start:.2f} kNm, M{end_node}{start_node}: {moment_end:.2f} kNm")
-        print("\nShear Force and Bending Moment along the span:")
-        for j in range(len(x)):
-            print(f"  x = {x[j]:.2f} m: SF = {shear_force[j]:.2f} kN, BM = {bending_moment[j]:.2f} kNm")
-
-    print("\nFinal Support Reactions:")
-    for support, reaction in reactions.items():
-        print(f"  Reaction at {support}: {reaction:.2f} kN")
+# Main program
+beam = BeamAnalysis()
+beam.analyze()

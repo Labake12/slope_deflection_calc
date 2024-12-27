@@ -73,12 +73,16 @@ class BeamAnalysis:
             l = self.supports[i + 1]["position"] - self.supports[i]["position"]
             ei = self.spans[i]["EI"]
 
+            # Fixed-end moments for the current span
+            m_fab = self.fixed_end_moments[i]["AB"]
+            m_fba = self.fixed_end_moments[i]["BA"]
+
             # Indices of current and next supports in unknowns
             if self.supports[i]["type"] in ("hinged", "roller"):
                 current_idx = unknown_indices.index(i)
                 coeff_matrix[current_idx, current_idx] += 4 * ei / l
-                constants[current_idx] += self.fixed_end_moments[i]["AB"]
-
+                constants[current_idx] -= m_fab  # Adjust sign for compatibility with FEM
+                
                 if self.supports[i + 1]["type"] in ("hinged", "roller"):
                     next_idx = unknown_indices.index(i + 1)
                     coeff_matrix[current_idx, next_idx] += 2 * ei / l
@@ -86,7 +90,7 @@ class BeamAnalysis:
             if self.supports[i + 1]["type"] in ("hinged", "roller"):
                 next_idx = unknown_indices.index(i + 1)
                 coeff_matrix[next_idx, next_idx] += 4 * ei / l
-                constants[next_idx] += self.fixed_end_moments[i]["BA"]
+                constants[next_idx] -= m_fba  # Adjust sign for compatibility with FEM
 
                 if self.supports[i]["type"] in ("hinged", "roller"):
                     current_idx = unknown_indices.index(i)
@@ -112,6 +116,7 @@ class BeamAnalysis:
 
         print("Theta Values (Slopes):", self.theta_values, "\n")
 
+
     def calculate_reactions(self):
         print("Calculating Reactions...")
         self.reactions = [0] * len(self.supports)
@@ -131,6 +136,32 @@ class BeamAnalysis:
             self.reactions[i + 1] += moment_b
 
         print("Reactions:", self.reactions, "\n")
+
+    def calculate_final_moments(self):
+        print("Calculating Final Moments for Each Span...")
+        self.final_moments = {}
+
+        for i in range(len(self.spans)):
+            l = self.supports[i + 1]["position"] - self.supports[i]["position"]
+            ei = self.spans[i]["EI"]
+            theta_a = self.theta_values[i]
+            theta_b = self.theta_values[i + 1]
+
+            # Final moments using slope-deflection equations
+            m_ab = (4 * ei / l) * theta_a - (2 * ei / l) * theta_b + self.fixed_end_moments[i]["AB"]
+            m_ba = (4 * ei / l) * theta_b - (2 * ei / l) * theta_a + self.fixed_end_moments[i]["BA"]
+
+            # Assign unique names based on supports
+            support_a = f"M{i+1}{chr(65+i)}"
+            support_b = f"M{i+1}{chr(66+i)}"
+
+            # Store the moments
+            self.final_moments[f"{support_a}-{support_b}"] = m_ab
+            self.final_moments[f"{support_b}-{support_a}"] = m_ba
+
+        # Output the final moments for each span
+        for key, value in self.final_moments.items():
+            print(f"{key}: {value:.3f}")
 
     def plot_shear_and_bending(self):
         print("Plotting Shear Force and Bending Moment Diagrams...")
@@ -174,6 +205,7 @@ class BeamAnalysis:
         self.input_spans()
         self.calculate_fixed_end_moments()
         self.solve_theta_values()
+        self.calculate_final_moments()
         self.calculate_reactions()
         self.plot_shear_and_bending()
 
