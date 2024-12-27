@@ -124,64 +124,137 @@ class BeamAnalysis:
             print(f"{key}: {value:.3f} kNm")
 
     def calculate_reactions(self):
-        print("Calculating Reactions...")
+        print("Calculating Reactions at Supports...")
         num_supports = len(self.supports)
-        reaction_matrix = np.zeros((num_supports, num_supports))
-        constants = np.zeros(num_supports)
+        self.reactions = [0] * num_supports
 
-        # Loop through spans to distribute loads and moments to supports
+        # Loop through each span and calculate reactions
         for i in range(len(self.spans)):
             l = self.supports[i + 1]["position"] - self.supports[i]["position"]
             load_type = self.spans[i]["load_type"]
             load_data = self.spans[i]["load_data"]
 
-            # Contribution of fixed-end moments to reactions
-            reaction_matrix[i, i] += 1
-            constants[i] -= self.fixed_end_moments[i]["AB"]
-            reaction_matrix[i + 1, i + 1] += 1
-            constants[i + 1] -= self.fixed_end_moments[i]["BA"]
+            # Final moments at the ends of the span
+            m_ab = self.final_moments[f"M{i + 1}_AB"]
+            m_ba = self.final_moments[f"M{i + 1}_BA"]
 
-            # Add load contributions
-            if load_type == "point":
+            # Initialize reactions for the span
+            reaction_a = 0
+            reaction_b = 0
+
+            if load_type == "udl":
+                w = load_data["magnitude"]
+                total_load = w * l
+                equivalent_point_load_position = l / 2
+                # Use moment equilibrium about B
+                reaction_b = (m_ab + m_ba + total_load * equivalent_point_load_position) / l
+                # Vertical force equilibrium
+                reaction_a = total_load - reaction_b
+
+            elif load_type == "point":
                 p = load_data["magnitude"]
                 a = load_data["position"]
                 b = l - a
-                reaction_matrix[i, i] += b / l
-                reaction_matrix[i + 1, i + 1] += a / l
-                constants[i] -= p * (b / l)
-                constants[i + 1] -= p * (a / l)
-            elif load_type == "udl":
-                w = load_data["magnitude"]
-                reaction_matrix[i, i] += w * l / 2
-                reaction_matrix[i + 1, i + 1] += w * l / 2
-                constants[i] -= w * l / 2
-                constants[i + 1] -= w * l / 2
+                # Use moment equilibrium about B
+                reaction_b = (m_ab + m_ba + p * a) / l
+                # Vertical force equilibrium
+                reaction_a = p - reaction_b
+
             elif load_type == "vdl":
                 w1 = load_data["magnitude_start"]
                 w2 = load_data["magnitude_end"]
-                avg_w = (w1 + w2) / 2
-                reaction_matrix[i, i] += avg_w * l / 2
-                reaction_matrix[i + 1, i + 1] += avg_w * l / 2
-                constants[i] -= avg_w * l / 2
-                constants[i + 1] -= avg_w * l / 2
+                total_load = (w1 + w2) * l / 2
+                equivalent_point_load_position = (l * (2 * w1 + w2)) / (3 * (w1 + w2))
+                # Use moment equilibrium about B
+                reaction_b = (m_ab + m_ba + total_load * equivalent_point_load_position) / l
+                # Vertical force equilibrium
+                reaction_a = total_load - reaction_b
 
-        # Solve for reactions
-        try:
-            reactions = np.linalg.solve(reaction_matrix, constants)
-        except np.linalg.LinAlgError:
-            print("Error: Singular matrix. Check input data or boundary conditions.")
-            return
+            # Add reactions to global support reactions
+            self.reactions[i] += reaction_a
+            self.reactions[i + 1] += reaction_b
 
-        # Assign reactions to supports
-        for i in range(num_supports):
-            self.supports[i]["reaction"] = reactions[i]
+        # Print results
+        print("Reactions at Supports:")
+        for i, reaction in enumerate(self.reactions):
+            print(f"Support {i + 1} (Position {self.supports[i]['position']} m): {reaction:.3f} kN")
 
-        # Display reactions
-        print("Reactions:")
-        for i, support in enumerate(self.supports):
-            print(f"Reaction at Support {i + 1} (Position {support['position']} m): {support['reaction']:.3f} kN")
+    def calculate_shear_and_bending(self):
+        print("Calculating Shear Force and Bending Moment Distributions...")
+        x_vals = []  # Positions along the beam
+        shear_vals = []  # Shear force values
+        moment_vals = []  # Bending moment values
 
+        for i, span in enumerate(self.spans):
+            l = self.supports[i + 1]["position"] - self.supports[i]["position"]
+            load_type = span["load_type"]
+            load_data = span["load_data"]
+            reaction_a = self.reactions[i]
+            reaction_b = self.reactions[i + 1]
 
+            # Initialize SF and BM at the start of the span
+            sf = reaction_a
+            bm = 0
+
+            # Divide the span into small intervals for calculation
+            num_points = 100
+            x_local = np.linspace(0, l, num_points)
+            for x in x_local:
+                if load_type == "udl":
+                    w = load_data["magnitude"]
+                    load_up_to_x = w * x
+                    sf = reaction_a - load_up_to_x
+                    bm = reaction_a * x - (w * x**2) / 2
+
+                elif load_type == "point":
+                    p = load_data["magnitude"]
+                    a = load_data["position"]
+                    if x < a:
+                        sf = reaction_a
+                        bm = reaction_a * x
+                    else:
+                        sf = reaction_a - p
+                        bm = reaction_a * x - p * (x - a)
+
+                elif load_type == "vdl":
+                    w1 = load_data["magnitude_start"]
+                    w2 = load_data["magnitude_end"]
+                    w_x = w1 + (w2 - w1) * (x / l)  # Linear variation
+                    load_up_to_x = (w1 + w_x) * x / 2
+                    sf = reaction_a - load_up_to_x
+                    bm = reaction_a * x - (w1 * x**2) / 2 - (w2 - w1) * x**3 / (6 * l)
+
+                # Store values
+                x_vals.append(self.supports[i]["position"] + x)
+                shear_vals.append(sf)
+                moment_vals.append(bm)
+
+            # Add reaction at the next support
+            sf += reaction_b  # Adjust for the reaction at the next support
+
+        # Plot Shear Force Diagram (SFD) and Bending Moment Diagram (BMD)
+        plt.figure(figsize=(12, 8))
+
+        plt.subplot(2, 1, 1)
+        plt.plot(x_vals, shear_vals, label="Shear Force")
+        plt.axhline(0, color="black", linewidth=0.5, linestyle="--")
+        plt.title("Shear Force Diagram")
+        plt.xlabel("Position along the beam (m)")
+        plt.ylabel("Shear Force (kN)")
+        plt.grid()
+        plt.legend()
+
+        plt.subplot(2, 1, 2)
+        plt.plot(x_vals, moment_vals, label="Bending Moment", color="red")
+        plt.axhline(0, color="black", linewidth=0.5, linestyle="--")
+        plt.title("Bending Moment Diagram")
+        plt.xlabel("Position along the beam (m)")
+        plt.ylabel("Bending Moment (kNm)")
+        plt.grid()
+        plt.legend()
+
+        plt.tight_layout()
+        plt.show()
 
     def analyze(self):
         self.input_supports()
@@ -190,6 +263,7 @@ class BeamAnalysis:
         self.solve_theta_values()
         self.calculate_final_moments()
         self.calculate_reactions()
+        self.calculate_shear_and_bending()
         # Add other components like reactions and plotting here as needed.
 
 # Main program
