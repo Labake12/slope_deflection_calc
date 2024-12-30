@@ -51,7 +51,7 @@ class BeamAnalysis:
                 w1 = span["load_data"]["magnitude_start"]
                 w2 = span["load_data"]["magnitude_end"]
                 fem["AB"] = -(w1 + w2) * l**2 / 20
-                fem["BA"] = (w1 + w2) * l**2 / 20
+                fem["BA"] = (w1 + w2) * l**2 / 30
             else:
                 fem["AB"] = fem["BA"] = 0
             self.fixed_end_moments.append(fem)
