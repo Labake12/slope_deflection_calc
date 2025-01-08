@@ -1,11 +1,44 @@
-document.addEventListener('DOMContentLoaded', function() {
-    const totalSpansInput = document.getElementById('total_spans');
-    const spanDetailsContainer = document.getElementById('span_details_container');
+document.addEventListener('DOMContentLoaded', function () {
+    const totalSupportsInput = document.getElementById('total_supports'); // Number of supports input
+    const spanDetailsContainer = document.getElementById('span_details_container'); // Container for spans and supports
+    const calculateButton = document.getElementById('calculate_button'); // Calculate button
 
-    totalSpansInput.addEventListener('input', function() {
-        const totalSpans = parseInt(totalSpansInput.value);
-        spanDetailsContainer.innerHTML = '';  // Clear existing fields
+    // Hide the Calculate button initially
+    calculateButton.style.display = 'none';
 
+    totalSupportsInput.addEventListener('input', function () {
+        const totalSupports = parseInt(totalSupportsInput.value);
+
+        // Clear existing content and validate input
+        spanDetailsContainer.innerHTML = '';
+        if (isNaN(totalSupports) || totalSupports < 2) {
+            spanDetailsContainer.innerHTML = '<p>Please enter a valid number of supports (at least 2).</p>';
+            calculateButton.style.display = 'none';
+            return;
+        }
+
+        const totalSpans = totalSupports - 1; // Spans = Supports - 1
+
+        // Generate Support Fields
+        for (let i = 1; i <= totalSupports; i++) {
+            const supportDiv = document.createElement('div');
+            supportDiv.classList.add('support-group');
+            supportDiv.innerHTML = `
+                <h3>Support ${i}</h3>
+                <label for="support_${i}_position">Position of Support ${i}:</label>
+                <input type="number" id="support_${i}_position" name="support_${i}_position" required><br><br>
+
+                <label for="support_${i}_type">Support Type for Support ${i}:</label>
+                <select name="support_${i}_type" id="support_${i}_type" required>
+                    <option value="fixed">Fixed</option>
+                    <option value="roller">Roller</option>
+                    <option value="hinged">Hinged</option>
+                </select><br><br>
+            `;
+            spanDetailsContainer.appendChild(supportDiv);
+        }
+
+        // Generate Span Fields
         for (let i = 1; i <= totalSpans; i++) {
             const spanDiv = document.createElement('div');
             spanDiv.classList.add('span-group');
@@ -29,13 +62,13 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
             spanDetailsContainer.appendChild(spanDiv);
 
-            // Add event listener for the load type dropdown
+            // Add Event Listener for Load Type
             const loadTypeSelect = spanDiv.querySelector(`#span_${i}_load_type`);
             const loadParamsContainer = spanDiv.querySelector(`#span_${i}_load_params`);
 
-            loadTypeSelect.addEventListener('change', function() {
+            loadTypeSelect.addEventListener('change', function () {
                 const loadType = loadTypeSelect.value;
-                loadParamsContainer.innerHTML = '';  // Clear existing inputs
+                loadParamsContainer.innerHTML = ''; // Clear existing inputs
 
                 if (loadType === 'point') {
                     loadParamsContainer.innerHTML = `
@@ -58,5 +91,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
         }
+
+        // Show the Calculate button after generating spans and supports
+        calculateButton.style.display = 'block';
     });
 });

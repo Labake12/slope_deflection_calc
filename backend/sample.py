@@ -231,10 +231,18 @@ class BeamAnalysis:
 
             # Add reaction at the next support
             sf += reaction_b  # Adjust for the reaction at the next support
-
-        # Plot Shear Force Diagram (SFD) and Bending Moment Diagram (BMD)
+        return (x_vals, shear_vals, moment_vals)
+    
+    def plot_diagrams(self, x_vals, shear_vals, moment_vals, save_path):
+        """Generate and save shear force and bending moment diagrams."""
+        # Use Agg backend which doesn't require a GUI
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+        
         plt.figure(figsize=(12, 8))
 
+        # Shear Force Diagram
         plt.subplot(2, 1, 1)
         plt.plot(x_vals, shear_vals, label="Shear Force")
         plt.axhline(0, color="black", linewidth=0.5, linestyle="--")
@@ -244,6 +252,7 @@ class BeamAnalysis:
         plt.grid()
         plt.legend()
 
+        # Bending Moment Diagram
         plt.subplot(2, 1, 2)
         plt.plot(x_vals, moment_vals, label="Bending Moment", color="red")
         plt.axhline(0, color="black", linewidth=0.5, linestyle="--")
@@ -254,7 +263,33 @@ class BeamAnalysis:
         plt.legend()
 
         plt.tight_layout()
-        plt.show()
+        # Save the plot instead of showing it
+        plt.savefig(save_path)
+        plt.close()  # Close the figure to free memory
+        # Plot Shear Force Diagram (SFD) and Bending Moment Diagram (BMD)
+        # plt.figure(figsize=(12, 8))
+
+        # plt.subplot(2, 1, 1)
+        # plt.plot(x_vals, shear_vals, label="Shear Force")
+        # plt.axhline(0, color="black", linewidth=0.5, linestyle="--")
+        # plt.title("Shear Force Diagram")
+        # plt.xlabel("Position along the beam (m)")
+        # plt.ylabel("Shear Force (kN)")
+        # plt.grid()
+        # plt.legend()
+
+        # plt.subplot(2, 1, 2)
+        # plt.plot(x_vals, moment_vals, label="Bending Moment", color="red")
+        # plt.axhline(0, color="black", linewidth=0.5, linestyle="--")
+        # plt.title("Bending Moment Diagram")
+        # plt.xlabel("Position along the beam (m)")
+        # plt.ylabel("Bending Moment (kNm)")
+        # plt.grid()
+        # plt.legend()
+
+        # plt.tight_layout()
+        # plt.savefig(save_path)
+        # plt.close()
 
     def analyze(self):
         self.input_supports()
@@ -267,5 +302,8 @@ class BeamAnalysis:
         # Add other components like reactions and plotting here as needed.
 
 # Main program
-beam = BeamAnalysis()
-beam.analyze()
+# beam = BeamAnalysis()
+# beam.analyze()
+if __name__ == "__main__":
+    beam = BeamAnalysis()
+    beam.analyze()

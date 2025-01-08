@@ -5,172 +5,135 @@ class BeamAnalysis:
     def __init__(self):
         self.supports = []
         self.spans = []
+        self.fixed_end_moments = []
+        self.theta_values = []
+        self.final_moments = {}
+        self.reactions = []
 
     def input_supports(self):
+        """Input and configure supports for the beam."""
         num_supports = int(input("Enter the number of supports (minimum 2): "))
         for i in range(num_supports):
             support_type = input(f"Enter the type of support {i + 1} (hinged, fixed, roller): ").strip().lower()
-            position = float(input(f"Enter the position of support {i + 1}: "))
+            position = float(input(f"Enter the position of support {i + 1} (in meters): "))
             self.supports.append({"type": support_type, "position": position})
         print("Supports configured successfully.\n")
 
     def input_spans(self):
+        """Input and configure spans for the beam."""
         num_spans = len(self.supports) - 1
         for i in range(num_spans):
             print(f"\nConfiguring span {i + 1}...")
+            E = float(input(f"Enter modulus of elasticity (E) for span {i + 1} (in kN/m²): "))
+            I = float(input(f"Enter moment of inertia (I) for span {i + 1} (in m⁴): "))
+            EI = E * I
+            print(f"EI for span {i + 1}: {EI:.3f} (kNm²)")
 
-            # Input E and I separately
-            e = float(input(f"Enter modulus of elasticity (E) for span {i + 1} (in kN/m²): "))
-            i = float(input(f"Enter moment of inertia (I) for span {i + 1} (in m⁴): "))
-            ei = e * i
-            print(f"EI for span {i + 1}: {ei:.3f} (kNm²)")
-
-            # Number of loads on the span
             num_loads = int(input(f"Enter the number of loads on span {i + 1}: "))
             loads = []
 
-            # Display load options
-            print("\nSelect load type:")
-            print("1: None")
-            print("2: Point load at center")
-            print("3: Point load at distance 'a' from left end and 'b' from the right end")
-            print("4: Two equal point loads, spaced at 1/3 of the total length from each other")
-            print("5: Three equal point loads, spaced at 1/4 of the total length from each other")
-            print("6: Uniformly distributed load over the whole length")
-            print("7: Variably distributed load, with highest point on the right end")
-            print("8: Variably distributed load, with highest point on the left end")
-
             for j in range(num_loads):
-                print(f"\nAdding load {j + 1} for span {i + 1}...")
-                load_type = int(input("Enter load type: "))
+                print("\nSelect load type:")
+                print("1: None")
+                print("2: Point load at center")
+                print("3: Point load at distance 'a' from left end and 'b' from the right end")
+                print("4: Two equal point loads, spaced at 1/3 of the total length from each other")
+                print("5: Three equal point loads, spaced at 1/4 of the total length from each other")
+                print("6: Uniformly distributed load over the whole length")
+                print("7: Variably distributed load, with highest point on the right end")
+                print("8: Variably distributed load, with highest point on the left end")
+
+                load_type = int(input(f"Enter load type {j + 1} for span {i + 1}: "))
                 load_data = {}
 
-                if load_type == 1:  # None
-                    print("No load added for this entry.")
-
-                elif load_type == 2:  # Point load at center
+                if load_type == 2:
                     load_data["type"] = "point_center"
                     load_data["magnitude"] = float(input("Enter point load magnitude (in kN): "))
 
-                elif load_type == 3:  # Point load at distance 'a' from left end
-                    load_data["type"] = "point_offset"
+                elif load_type == 3:
+                    load_data["type"] = "point_distance"
                     load_data["magnitude"] = float(input("Enter point load magnitude (in kN): "))
-                    load_data["position"] = float(input("Enter distance 'a' from the left end (in m): "))
+                    load_data["a"] = float(input("Enter distance 'a' from the left end (in meters): "))
+                    load_data["b"] = float(input("Enter distance 'b' from the right end (in meters): "))
 
-                elif load_type == 4:  # Two equal point loads
-                    load_data["type"] = "two_equal"
+                elif load_type == 4:
+                    load_data["type"] = "two_equal_point"
                     load_data["magnitude"] = float(input("Enter magnitude of each point load (in kN): "))
-                    load_data["position"] = float(input("Enter distance between the two point loads (in m): "))
 
-                elif load_type == 5:  # Three equal point loads
-                    load_data["type"] = "three_equal"
+                elif load_type == 5:
+                    load_data["type"] = "three_equal_point"
                     load_data["magnitude"] = float(input("Enter magnitude of each point load (in kN): "))
-                    load_data["position"] = float(input("Enter distance between each point load (in m): "))
 
-                elif load_type == 6:  # Uniformly distributed load (UDL)
-                    load_data["type"] = "udl_full"
+                elif load_type == 6:
+                    load_data["type"] = "udl"
                     load_data["magnitude"] = float(input("Enter UDL magnitude (in kN/m): "))
 
-                elif load_type == 9:  # Variably distributed load (VDL, max on right)
+                elif load_type == 7:
                     load_data["type"] = "vdl_right"
-                    load_data["magnitude"] = float(input("Enter peak VDL magnitude (in kN/m): "))
+                    load_data["magnitude"] = float(input("Enter maximum VDL magnitude (in kN/m) at the right end: "))
 
-                elif load_type == 10:  # Variably distributed load (VDL, max on left)
+                elif load_type == 8:
                     load_data["type"] = "vdl_left"
-                    load_data["magnitude"] = float(input("Enter peak VDL magnitude (in kN/m): "))
+                    load_data["magnitude"] = float(input("Enter maximum VDL magnitude (in kN/m) at the left end: "))
 
-                else:
-                    print("Invalid load type. Skipping...")
+                loads.append(load_data)
 
-                # Add the load data to the span
-                if load_data:
-                    loads.append(load_data)
-
-            self.spans.append({"EI": ei, "loads": loads})
-        print("\nSpans configured successfully.")
+            self.spans.append({"EI": EI, "loads": loads})
+        print("\nSpans configured successfully.\n")
 
 
     def calculate_fixed_end_moments(self):
+        """Calculate fixed-end moments (FEM) for each span and each load."""
         print("Calculating Fixed-End Moments (FEM)...")
         self.fixed_end_moments = []
 
-        # Loop over each span in the input spans
         for i, span in enumerate(self.spans):
-            fem = {}  # Initialize an empty dictionary to store FEM values for this span
-            l = self.supports[i + 1]["position"] - self.supports[i]["position"]  # Calculate the length of the span
+            l = self.supports[i + 1]["position"] - self.supports[i]["position"]
+            fem = {"AB": 0, "BA": 0}
 
-            # Check the load types based on the load data in each span
             for load in span["loads"]:
                 load_type = load["type"]
-                if load_type == "point_center":  # Point load at center of the span
-                    # Formula: FEM for point load at center is (P * L) / 8
-                    magnitude = load["magnitude"]
-                    fem["AB"] = -magnitude * l / 8
-                    fem["BA"] = magnitude * l / 8
 
-                elif load_type == "point_offset":  # Point load at a specific distance from left end
-                    magnitude = load["magnitude"]
-                    position = load["position"]
-                    a = position
+                if load_type == "point_center":
+                    p = load["magnitude"]
+                    fem["AB"] += -p * l / 8
+                    fem["BA"] += p * l / 8
+
+                elif load_type == "point_offset":
+                    p = load["magnitude"]
+                    a = load["position"]
                     b = l - a
-                    # Formula: Point load at offset from ends (generalized)
-                    fem["AB"] = -magnitude * a * b**2 / l**2
-                    fem["BA"] = magnitude * a**2 * b / l**2
+                    fem["AB"] += -p * a * b**2 / l**2
+                    fem["BA"] += p * a**2 * b / l**2
 
-                elif load_type == "two_equal":  # Two equal point loads, spaced at a specified distance
-                    magnitude = load["magnitude"]
-                    distance = load["position"]
-                    a = distance / 2  # Assume distance from each end to the load is half of the total distance
-                    b = l - a
-                    # Formula for two equal point loads (spaced at a fixed distance)
-                    fem["AB"] = -magnitude * b * a * a / (l**2)
-                    fem["BA"] = magnitude * b * b * a / (l**2)
+                elif load_type == "udl_full":
+                    w = load["magnitude"]
+                    fem["AB"] += -w * l**2 / 12
+                    fem["BA"] += w * l**2 / 12
 
-                elif load_type == "three_equal":  # Three equal point loads, spaced at a specified distance
-                    magnitude = load["magnitude"]
-                    distance = load["position"]
-                    a = distance / 3  # Assume three equal point loads spaced evenly
-                    b = l - a
-                    # Formula for three equal point loads spaced evenly
-                    fem["AB"] = -magnitude * b * a * a * a / (l**3)
-                    fem["BA"] = magnitude * b * a * b / (l**3)
+                elif load_type == "vdl_right":
+                    w = load["magnitude"]
+                    fem["AB"] += -(w * l**2) / 20
+                    fem["BA"] += (w * l**2) / 30
 
-                elif load_type == "udl_full":  # Uniformly distributed load over the entire span
-                    magnitude = load["magnitude"]
-                    # Formula for UDL over the entire length
-                    fem["AB"] = -magnitude * l**2 / 12
-                    fem["BA"] = magnitude * l**2 / 12
-
-                elif load_type == "vdl_right":  # Variably distributed load, maximum on the right end
-                    magnitude = load["magnitude"]
-                    # Formula for VDL with max on the right end
-                    fem["AB"] = -(magnitude * l**2) / 20
-                    fem["BA"] = (magnitude * l**2) / 30
-
-                elif load_type == "vdl_left":  # Variably distributed load, maximum on the left end
-                    magnitude = load["magnitude"]
-                    # Formula for VDL with max on the left end
-                    fem["AB"] = (magnitude * l**2) / 30
-                    fem["BA"] = -(magnitude * l**2) / 20
-
-                else:
-                    # If no load type matches, assume no load and FEM is 0
-                    fem["AB"] = 0
-                    fem["BA"] = 0
+                elif load_type == "vdl_left":
+                    w = load["magnitude"]
+                    fem["AB"] += (w * l**2) / 30
+                    fem["BA"] += -(w * l**2) / 20
 
             self.fixed_end_moments.append(fem)
-
         print("Fixed-End Moments (FEM):", self.fixed_end_moments, "\n")
 
     def solve_theta_values(self):
+        """Solve for slope (theta) values."""
         print("Solving for Theta Values...")
         num_supports = len(self.supports)
         unknown_indices = [i for i, support in enumerate(self.supports) if support["type"] in ("hinged", "roller")]
         num_unknowns = len(unknown_indices)
-        
+
         coeff_matrix = np.zeros((num_unknowns, num_unknowns))
         constants = np.zeros(num_unknowns)
-        
+
         for i in range(len(self.spans)):
             l = self.supports[i + 1]["position"] - self.supports[i]["position"]
             ei = self.spans[i]["EI"]
@@ -193,19 +156,20 @@ class BeamAnalysis:
                     current_idx = unknown_indices.index(i)
                     coeff_matrix[next_idx, current_idx] += 2 * ei / l
 
-        try:
-            theta_unknowns = np.linalg.solve(coeff_matrix, constants)
-        except np.linalg.LinAlgError:
-            print("Error: Singular matrix. Check input data or boundary conditions.")
-            return
-
         self.theta_values = np.zeros(num_supports)
-        for i, idx in enumerate(unknown_indices):
-            self.theta_values[idx] = theta_unknowns[i]
+        if num_unknowns > 0:
+            try:
+                theta_unknowns = np.linalg.solve(coeff_matrix, constants)
+                for i, idx in enumerate(unknown_indices):
+                    self.theta_values[idx] = theta_unknowns[i]
+            except np.linalg.LinAlgError:
+                print("Error: Singular matrix encountered. Check input data or boundary conditions.")
 
         print("Theta Values (Slopes):", self.theta_values, "\n")
 
+
     def calculate_final_moments(self):
+        """Calculate final moments for each span."""
         print("Calculating Final Moments for Each Span...")
         self.final_moments = {}
         for i in range(len(self.spans)):
@@ -224,19 +188,22 @@ class BeamAnalysis:
             self.final_moments[f"M{i + 1}_AB"] = m_ab
             self.final_moments[f"M{i + 1}_BA"] = m_ba
 
-        print("Final Moments :")
+        print("Final Moments:")
         for key, value in self.final_moments.items():
-            print(f"{key}: {value:.3f} kNm")
+            print(f"{key}: {value:.3f} kNm\n")
+
 
     def calculate_reactions(self):
+        """Calculate reactions at supports."""
         print("Calculating Reactions at Supports...")
         num_supports = len(self.supports)
         self.reactions = [0] * num_supports
 
-        # Loop through each span and calculate reactions
+        # Loop through each span to calculate reactions
         for i in range(len(self.spans)):
             l = self.supports[i + 1]["position"] - self.supports[i]["position"]
-            loads = self.spans[i]["loads"]  # Get the list of loads for the current span
+            ei = self.spans[i]["EI"]
+            loads = self.spans[i]["loads"]  # Each span has a list of loads
 
             # Final moments at the ends of the span
             m_ab = self.final_moments[f"M{i + 1}_AB"]
@@ -246,215 +213,137 @@ class BeamAnalysis:
             reaction_a = 0
             reaction_b = 0
 
-            # Loop over each load in the span
+            # Process all loads on the span
             for load in loads:
                 load_type = load["type"]
-                if load_type == "udl_full":  # Uniformly distributed load (UDL)
+
+                if load_type == "udl":
                     w = load["magnitude"]
                     total_load = w * l
                     equivalent_point_load_position = l / 2
-                    # Use moment equilibrium about B
-                    reaction_b = (m_ab + m_ba + total_load * equivalent_point_load_position) / l
-                    # Vertical force equilibrium
-                    reaction_a = total_load - reaction_b
+                    reaction_b += (m_ab + m_ba + total_load * equivalent_point_load_position) / l
+                    reaction_a += total_load - reaction_b
 
-                elif load_type == "point_center":  # Point load at center of the span
-                    p = load["magnitude"]
-                    # Point load at center has no position; we assume it acts at L/2
-                    a = l / 2
-                    b = l / 2
-                    # Use moment equilibrium about B
-                    reaction_b = (m_ab + m_ba + p * a) / l
-                    # Vertical force equilibrium
-                    reaction_a = p - reaction_b
-
-                elif load_type == "point_offset":  # Point load at a specific distance from left end
+                elif load_type == "point":
                     p = load["magnitude"]
                     a = load["position"]
-                    b = l - a
-                    # Use moment equilibrium about B
-                    reaction_b = (m_ab + m_ba + p * a) / l
-                    # Vertical force equilibrium
-                    reaction_a = p - reaction_b
+                    reaction_b += (m_ab + m_ba + p * a) / l
+                    reaction_a += p - reaction_b
 
-                elif load_type == "two_equal":  # Two equal point loads
-                    p = load["magnitude"]
-                    distance = load["position"]
-                    a = distance / 2
-                    b = l - a
-                    # Use moment equilibrium about B
-                    reaction_b = (m_ab + m_ba + p * a) / l
-                    # Vertical force equilibrium
-                    reaction_a = p - reaction_b
-
-                elif load_type == "three_equal":  # Three equal point loads
-                    p = load["magnitude"]
-                    distance = load["position"]
-                    a = distance / 3
-                    b = l - a
-                    # Use moment equilibrium about B
-                    reaction_b = (m_ab + m_ba + p * a) / l
-                    # Vertical force equilibrium
-                    reaction_a = p - reaction_b
-
-                elif load_type == "vdl_right":  # Variably distributed load, maximum on the right end
-                    w = load["magnitude"]
-                    # Calculate equivalent total load and position
-                    total_load = w * l / 2
-                    equivalent_point_load_position = l / 3
-                    # Use moment equilibrium about B
-                    reaction_b = (m_ab + m_ba + total_load * equivalent_point_load_position) / l
-                    # Vertical force equilibrium
-                    reaction_a = total_load - reaction_b
-
-                elif load_type == "vdl_left":  # Variably distributed load, maximum on the left end
-                    w = load["magnitude"]
-                    # Calculate equivalent total load and position
-                    total_load = w * l / 2
-                    equivalent_point_load_position = l / 3
-                    # Use moment equilibrium about B
-                    reaction_b = (m_ab + m_ba + total_load * equivalent_point_load_position) / l
-                    # Vertical force equilibrium
-                    reaction_a = total_load - reaction_b
+                elif load_type == "vdl":
+                    w1 = load["magnitude_start"]
+                    w2 = load["magnitude_end"]
+                    total_load = (w1 + w2) * l / 2
+                    equivalent_point_load_position = (l * (2 * w1 + w2)) / (3 * (w1 + w2))
+                    reaction_b += (m_ab + m_ba + total_load * equivalent_point_load_position) / l
+                    reaction_a += total_load - reaction_b
 
             # Add reactions to global support reactions
             self.reactions[i] += reaction_a
             self.reactions[i + 1] += reaction_b
 
-        # Print results
+
+        # Print the results
         print("Reactions at Supports:")
         for i, reaction in enumerate(self.reactions):
-            print(f"Support {i + 1} (Position {self.supports[i]['position']} m): {reaction:.3f} kN")
+            print(f"Support {i + 1} (Position {self.supports[i]['position']} m): {reaction:.3f} kN\n")
+
 
 
     def calculate_shear_and_bending(self):
+        """Calculate and visualize shear force and bending moment distributions."""
         print("Calculating Shear Force and Bending Moment Distributions...")
         x_vals = []  # Positions along the beam
         shear_vals = []  # Shear force values
         moment_vals = []  # Bending moment values
+        key_points = []  # Key positions for reporting values
 
-        # Loop through each span and calculate shear and moment
         for i, span in enumerate(self.spans):
             l = self.supports[i + 1]["position"] - self.supports[i]["position"]
-            load_type = span["load_type"]  # Get load type for current span
-            load_data = span["load_data"]  # Get load data
+            load_type = span["load_type"]
+            load_data = span["load_data"]
             reaction_a = self.reactions[i]
             reaction_b = self.reactions[i + 1]
 
-            # Add the fixed-end moments (FEM) for this span
-            fem_a = self.fem[i]["AB"]
-            fem_b = self.fem[i]["BA"]
-
-            # Initialize shear force and bending moment at the start of the span (including FEM)
-            sf = reaction_a + fem_a
-            bm = fem_a
+            # Initialize SF and BM at the start of the span
+            sf = reaction_a
+            bm = 0
 
             # Divide the span into small intervals for calculation
             num_points = 100
             x_local = np.linspace(0, l, num_points)
 
             for x in x_local:
-                # Handle each type of load on the span
-
-                # Load type 6: Uniformly Distributed Load (UDL) over the whole length
-                if load_type == "udl_full":  
+                if load_type == "udl":
                     w = load_data["magnitude"]
                     load_up_to_x = w * x
-                    sf = reaction_a + fem_a - load_up_to_x
-                    bm = fem_a + reaction_a * x - (w * x**2) / 2
+                    sf = reaction_a - load_up_to_x
+                    bm = reaction_a * x - (w * x**2) / 2
 
-                # Load type 2: Point Load at Center
-                elif load_type == "point_center":  
-                    p = load_data["magnitude"]
-                    a = l / 2  # Assumed position at center
-                    if x < a:
-                        sf = reaction_a + fem_a
-                        bm = fem_a + reaction_a * x
-                    else:
-                        sf = reaction_a + fem_a - p
-                        bm = fem_a + reaction_a * x - p * (x - a)
-
-                # Load type 3: Point Load at distance 'a' from the left end and 'b' from the right end
-                elif load_type == "point_offset":
+                elif load_type == "point":
                     p = load_data["magnitude"]
                     a = load_data["position"]
                     if x < a:
-                        sf = reaction_a + fem_a
-                        bm = fem_a + reaction_a * x
+                        sf = reaction_a
+                        bm = reaction_a * x
                     else:
-                        sf = reaction_a + fem_a - p
-                        bm = fem_a + reaction_a * x - p * (x - a)
+                        sf = reaction_a - p
+                        bm = reaction_a * x - p * (x - a)
 
-                # Load type 4: Two Equal Point Loads spaced at 1/3 of the total length
-                elif load_type == "two_equal":
-                    p = load_data["magnitude"]
-                    a = l / 3
-                    b = 2 * a
-                    if x < a:
-                        sf = reaction_a + fem_a
-                        bm = fem_a + reaction_a * x
-                    elif x < b:
-                        sf = reaction_a + fem_a - p
-                        bm = fem_a + reaction_a * x - p * (x - a)
-                    else:
-                        sf = reaction_a + fem_a - 2 * p
-                        bm = fem_a + reaction_a * x - p * (x - a) - p * (x - b)
-
-                # Load type 5: Three Equal Point Loads spaced at 1/4 of the total length
-                elif load_type == "three_equal":
-                    p = load_data["magnitude"]
-                    a = l / 4
-                    b = 2 * a
-                    c = 3 * a
-                    if x < a:
-                        sf = reaction_a + fem_a
-                        bm = fem_a + reaction_a * x
-                    elif x < b:
-                        sf = reaction_a + fem_a - p
-                        bm = fem_a + reaction_a * x - p * (x - a)
-                    elif x < c:
-                        sf = reaction_a + fem_a - 2 * p
-                        bm = fem_a + reaction_a * x - p * (x - a) - p * (x - b)
-                    else:
-                        sf = reaction_a + fem_a - 3 * p
-                        bm = fem_a + reaction_a * x - p * (x - a) - p * (x - b) - p * (x - c)
-
-                # Load type 7: Variably Distributed Load, with highest point on the right end
-                elif load_type == "vdl_right":
+                elif load_type == "vdl":
                     w1 = load_data["magnitude_start"]
                     w2 = load_data["magnitude_end"]
                     w_x = w1 + (w2 - w1) * (x / l)  # Linear variation
                     load_up_to_x = (w1 + w_x) * x / 2
-                    sf = reaction_a + fem_a - load_up_to_x
-                    bm = fem_a + reaction_a * x - (w1 * x**2) / 2 - (w2 - w1) * x**3 / (6 * l)
+                    sf = reaction_a - load_up_to_x
+                    bm = reaction_a * x - (w1 * x**2) / 2 - (w2 - w1) * x**3 / (6 * l)
 
-                # Load type 8: Variably Distributed Load, with highest point on the left end
-                elif load_type == "vdl_length":
-                    w1 = load_data["magnitude_start"]
-                    w2 = load_data["magnitude_end"]
-                    w_x = w1 + (w2 - w1) * (x / l)  # Linear variation
-                    load_up_to_x = (w1 + w_x) * x / 2
-                    sf = reaction_a + fem_a - load_up_to_x
-                    bm = fem_a + reaction_a * x - (w1 * x**2) / 2 - (w2 - w1) * x**3 / (6 * l)
-
-                # Load type 1: No Load
-                elif load_type == 1:
-                    sf = reaction_a + fem_a
-                    bm = fem_a
-
-                # Store values for plotting
+                # Store values
                 x_vals.append(self.supports[i]["position"] + x)
                 shear_vals.append(sf)
                 moment_vals.append(bm)
 
-            # Add reaction at the next support (this is a continuation after the span ends)
+            # Store key points (reactions, load positions)
+            key_points.append({
+                "position": self.supports[i]["position"],
+                "shear_force": reaction_a,
+                "bending_moment": 0  # No moment at supports unless there's a fixed support
+            })
+
+            if load_type == "point":
+                key_points.append({
+                    "position": self.supports[i]["position"] + load_data["position"],
+                    "shear_force": sf,
+                    "bending_moment": bm
+                })
+
+            # Add reaction at the next support
             sf += reaction_b  # Adjust for the reaction at the next support
 
+            key_points.append({
+                "position": self.supports[i + 1]["position"],
+                "shear_force": sf,
+                "bending_moment": 0  # No moment at supports unless there's a fixed support
+            })
+
+        # Print key points for shear force and bending moments
+        print("\nKey Points (Shear Force and Bending Moment):")
+        for kp in key_points:
+            print(f"Position: {kp['position']:.2f} m, Shear Force: {kp['shear_force']:.2f} kN, "
+                f"Bending Moment: {kp['bending_moment']:.2f} kNm")
+
         # Plot Shear Force Diagram (SFD) and Bending Moment Diagram (BMD)
+        self.plot_diagrams(x_vals, shear_vals, moment_vals, "shear_and_bending.png")
+
+        return x_vals, shear_vals, moment_vals
+    
+    def plot_diagrams(self, x_vals, shear_vals, moment_vals, save_path):
+        """Plot shear force and bending moment diagrams."""
         plt.figure(figsize=(12, 8))
 
+        # Shear Force Diagram
         plt.subplot(2, 1, 1)
-        plt.plot(x_vals, shear_vals, label="Shear Force")
+        plt.plot(x_vals, shear_vals, label="Shear Force", color="blue")
         plt.axhline(0, color="black", linewidth=0.5, linestyle="--")
         plt.title("Shear Force Diagram")
         plt.xlabel("Position along the beam (m)")
@@ -462,6 +351,7 @@ class BeamAnalysis:
         plt.grid()
         plt.legend()
 
+        # Bending Moment Diagram
         plt.subplot(2, 1, 2)
         plt.plot(x_vals, moment_vals, label="Bending Moment", color="red")
         plt.axhline(0, color="black", linewidth=0.5, linestyle="--")
@@ -472,17 +362,63 @@ class BeamAnalysis:
         plt.legend()
 
         plt.tight_layout()
+        plt.savefig(save_path)
         plt.show()
+        plt.close()
 
     def analyze(self):
+        """Run the complete beam analysis process."""
+        print("Starting Beam Analysis...")
+
+        # Step 1: Input supports and spans
         self.input_supports()
         self.input_spans()
+
+        # Step 2: Calculate Fixed-End Moments
         self.calculate_fixed_end_moments()
+
+        # Step 3: Solve for Theta Values
         self.solve_theta_values()
+
+        # Step 4: Calculate Final Moments
         self.calculate_final_moments()
+
+        # Step 5: Calculate Reactions
         self.calculate_reactions()
-        self.calculate_shear_and_bending()
-        # Add other components like reactions and plotting here as needed.
+
+        # Step 6: Calculate Shear and Bending Moment Distributions
+        x_vals, shear_vals, moment_vals = self.calculate_shear_and_bending()
+
+        # Step 7: Plot Diagrams for Shear Force and Bending Moments
+        save_path = "shear_and_bending_diagrams.png"
+        self.plot_diagrams(x_vals, shear_vals, moment_vals, save_path)
+
+        # Step 8: Summarize Key Results
+        print("\n=== Analysis Results ===")
+        print("Supports:")
+        for i, support in enumerate(self.supports):
+            print(f"Support {i + 1}: Type = {support['type']}, Position = {support['position']} m")
+
+        print("\nFixed-End Moments:")
+        for i, fem in enumerate(self.fixed_end_moments):
+            print(f"Span {i + 1}: FEM_AB = {fem['AB']:.3f} kNm, FEM_BA = {fem['BA']:.3f} kNm")
+
+        print("\nTheta Values (Slopes):")
+        for i, theta in enumerate(self.theta_values):
+            print(f"Support {i + 1}: θ = {theta:.6f} rad")
+
+        print("\nFinal Moments:")
+        for key, value in self.final_moments.items():
+            print(f"{key}: {value:.3f} kNm")
+
+        print("\nReactions at Supports:")
+        for i, reaction in enumerate(self.reactions):
+            print(f"Support {i + 1}: Reaction = {reaction:.3f} kN")
+
+        print("\nShear Force and Bending Moment Diagrams saved to:", save_path)
+
+        print("\nAnalysis Complete.")
+
 
 # Main program
 beam = BeamAnalysis()
