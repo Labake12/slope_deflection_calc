@@ -298,12 +298,17 @@ class BeamAnalysis:
         self.solve_theta_values()
         self.calculate_final_moments()
         self.calculate_reactions()
-        self.calculate_shear_and_bending()
+        x_vals, shear_vals, moment_vals = self.calculate_shear_and_bending()
+
+        # Save the diagram
+        self.plot_diagrams(x_vals, shear_vals, moment_vals, "beam_diagrams.png")
+        print("Diagrams saved to 'beam_diagrams.png'")
+
         # Add other components like reactions and plotting here as needed.
 
 # Main program
-# beam = BeamAnalysis()
-# beam.analyze()
-if __name__ == "__main__":
-    beam = BeamAnalysis()
-    beam.analyze()
+beam = BeamAnalysis()
+beam.analyze()
+# if __name__ == "__main__":
+#     beam = BeamAnalysis()
+#     beam.analyze()
