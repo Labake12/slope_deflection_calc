@@ -101,7 +101,7 @@ class BeamAnalysis:
 
                 elif load_type == "point_distance":
                     p = load["magnitude"]
-                    a = load["position"]
+                    a = load["a"]
                     b = l - a
                     fem["AB"] += -p * a * b**2 / l**2
                     fem["BA"] += p * a**2 * b / l**2

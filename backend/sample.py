@@ -307,8 +307,8 @@ class BeamAnalysis:
         # Add other components like reactions and plotting here as needed.
 
 # Main program
-beam = BeamAnalysis()
-beam.analyze()
-# if __name__ == "__main__":
-#     beam = BeamAnalysis()
-#     beam.analyze()
+# beam = BeamAnalysis()
+# beam.analyze()
+if __name__ == "__main__":
+    beam = BeamAnalysis()
+    beam.analyze()
