@@ -249,144 +249,97 @@ class BeamAnalysis:
             self.reactions[i] += reaction_a
             self.reactions[i + 1] += reaction_b
 
-
         # Print the results
         print("Reactions at Supports:")
         for i, reaction in enumerate(self.reactions):
             print(f"Support {i + 1} (Position {self.supports[i]['position']} m): {reaction:.3f} kN\n")
 
+    def calculate_shear_force(self):
+        """Calculate shear forces at critical points along the beam."""
+        print("\nCalculating Shear Forces...")
+        shear_forces = []
 
-    def calculate_shear_and_bending(self):
-        """Calculate shear force and bending moment distributions."""
-        print("Calculating Shear Force and Bending Moment Distributions...")
-
-        x_vals = []  # Positions along the beam
-        shear_vals = []  # Shear force values
-        moment_vals = []  # Bending moment values
-
-        carry_over_moment = 0  # Moment carried over to the next span
-
+        # Loop through each span
         for i, span in enumerate(self.spans):
-            # Calculate the span length
             l = self.supports[i + 1]["position"] - self.supports[i]["position"]
             reaction_a = self.reactions[i]
             reaction_b = self.reactions[i + 1]
 
-            # Initialize shear force and bending moment at the left end
+            # Start of the span
             sf = reaction_a
-            bm = carry_over_moment  # Start with the carried-over moment
-            x = self.supports[i]["position"]
+            shear_forces.append((self.supports[i]["position"], sf))
 
-            # Add initial values at the left support
-            x_vals.append(x)
-            shear_vals.append(sf)
-            moment_vals.append(bm)
-
-            # Process each load on the span
+            # Process loads
             for load in span["loads"]:
                 load_type = load["type"]
 
-                if load_type == "udl":
-                    # Uniformly Distributed Load (UDL) over the entire span
-                    w = load["magnitude"]  # Load magnitude (kN/m)
-                    num_points = 10  # Number of divisions for the curve
+                if load_type == "point_distance":
+                    p = load["magnitude"]
+                    a = load["a"]
 
-                    for j in range(num_points + 1):
-                        x_pos = x + (j / num_points) * l
-                        x_vals.append(x_pos)
+                    # Just left of the point load
+                    shear_forces.append((self.supports[i]["position"] + a, sf))
 
-                        # Shear force: S(x) = Reaction_A - w * x
-                        sf = reaction_a - w * (x_pos - x)
-                        shear_vals.append(sf)
-
-                        # Bending moment: M(x) = Carry-over moment + Reaction_A * x - (w * x²) / 2
-                        bm = carry_over_moment + reaction_a * (x_pos - x) - (w * (x_pos - x)**2) / 2
-                        moment_vals.append(bm)
-
-                    # Update x to the end of the span after the UDL
-                    x += l
-
-                elif load_type == "point_center":
-                    # Point Load at the center
-                    p = load["magnitude"]  # Point load magnitude (kN)
-                    a = l / 2  # Distance from the left support to the point load
-                    load_position = x + a
-
-                    # Calculate bending moment for the left side of the point load (before the load)
-                    num_points = 5  # Divide the span for smoother curves
-                    for j in range(num_points + 1):
-                        pos = x + (j / num_points) * a
-                        bm = carry_over_moment + reaction_a * (pos - x)  # Moment = Reaction_A * distance
-                        x_vals.append(pos)
-                        shear_vals.append(sf)
-                        moment_vals.append(bm)
-
-                    # Add bending moment at the load position
-                    bm = carry_over_moment + reaction_a * a
-                    x_vals.append(load_position)
-                    shear_vals.append(sf)
-                    moment_vals.append(bm)
-
-                    # Update shear force after the point load (subtract the point load)
+                    # Just right of the point load
                     sf -= p
+                    shear_forces.append((self.supports[i]["position"] + a, sf))
 
-                    # Bending moment after the point load (right side of the load)
-                    for j in range(num_points + 1):
-                        pos = load_position + (j / num_points) * a
-                        bm = carry_over_moment + reaction_b * (x + l - pos)  # Moment = Reaction_B * distance
-                        x_vals.append(pos)
-                        shear_vals.append(sf)
-                        moment_vals.append(bm)
+                elif load_type == "udl":
+                    w = load["magnitude"]
 
-                elif load_type == "point_load":
-                    # General Point Load at any position
-                    p = load["magnitude"]  # Point load magnitude (kN)
-                    load_position = load["position"]  # Position of the load along the span
+                    # Shear force just left of UDL midpoint
+                    midpoint = self.supports[i]["position"] + l / 2
+                    sf_mid = sf - (w * l / 2)
+                    shear_forces.append((midpoint, sf_mid))
 
-                    # Before the point load, calculate the shear and bending moment
-                    for j in range(5):
-                        x_pos = x + (j / 5) * (load_position - x)
-                        sf = reaction_a - p * (x_pos - x) / (load_position - x)
-                        bm = carry_over_moment + reaction_a * (x_pos - x) - (p * (x_pos - x)**2) / 2
-                        x_vals.append(x_pos)
-                        shear_vals.append(sf)
-                        moment_vals.append(bm)
+                    # Shear force at the end of the UDL
+                    sf -= w * l
+                    shear_forces.append((self.supports[i + 1]["position"], sf))
 
-                    # After the point load, calculate the shear and bending moment
-                    sf -= p  # Shear force decreases by the magnitude of the point load
-                    for j in range(5):
-                        x_pos = load_position + (j / 5) * (x + l - load_position)
-                        bm = carry_over_moment + reaction_b * (x + l - x_pos) - (p * (x_pos - load_position)**2) / 2
-                        x_vals.append(x_pos)
-                        shear_vals.append(sf)
-                        moment_vals.append(bm)
+            # End of the span
+            shear_forces.append((self.supports[i + 1]["position"], 0))
 
-            # Final bending moment at the right support of the current span
-            carry_over_moment = moment_vals[-1]  # Update carry-over moment to the last calculated value
+        # Print results
+        for position, sf in shear_forces:
+            print(f"Position: {position:.2f} m, Shear Force: {sf:.2f} kN")
 
-            # Explicitly add the moment at the right support
-            bm = carry_over_moment
-            x_vals.append(self.supports[i + 1]["position"])
-            shear_vals.append(sf)
-            moment_vals.append(bm)
-
-        # Print key points
-        print("\nKey Points (Shear Force and Bending Moment):")
-        for x, sf, bm in zip(x_vals, shear_vals, moment_vals):
-            print(f"Position: {x:.2f} m, Shear Force: {sf:.5f} kN, Bending Moment: {bm:.5f} kNm")
-
-        print("Shear Force and Bending Moment Distributions calculated successfully.")
-        return x_vals, shear_vals, moment_vals
-
-
+        return shear_forces
     
-    def plot_diagrams(self, x_vals, shear_vals, moment_vals, save_path):
+    def calculate_bending_moment(self, shear_forces):
+        """Calculate bending moments at critical points along the beam."""
+        print("\nCalculating Bending Moments...")
+        bending_moments = []
+
+        # Loop through the shear force results
+        for i in range(len(shear_forces) - 1):
+            x1, sf1 = shear_forces[i]
+            x2, sf2 = shear_forces[i + 1]
+
+            # Linear variation of bending moment between points
+            bm1 = 0 if i == 0 else bending_moments[-1][1]
+            bm2 = bm1 + sf1 * (x2 - x1)
+            bending_moments.append((x2, bm2))
+
+        # Print results
+        for position, bm in bending_moments:
+            print(f"Position: {position:.2f} m, Bending Moment: {bm:.2f} kNm")
+
+        return bending_moments
+
+
+    def plot_diagrams(self, shear_forces, bending_moments):
         """Plot shear force and bending moment diagrams."""
         plt.figure(figsize=(12, 8))
 
-        # Shear Force Diagram
+        # Extract positions, shear forces, and bending moments
+        x_shear = [point[0] for point in shear_forces]
+        y_shear = [point[1] for point in shear_forces]
+        x_bending = [point[0] for point in bending_moments]
+        y_bending = [point[1] for point in bending_moments]
+
+        # Plot Shear Force Diagram
         plt.subplot(2, 1, 1)
-        plt.plot(x_vals, shear_vals, label="Shear Force", color="blue")
+        plt.step(x_shear, y_shear, where="post", label="Shear Force", color="blue")
         plt.axhline(0, color="black", linewidth=0.5, linestyle="--")
         plt.title("Shear Force Diagram")
         plt.xlabel("Position along the beam (m)")
@@ -394,9 +347,9 @@ class BeamAnalysis:
         plt.grid()
         plt.legend()
 
-        # Bending Moment Diagram
+        # Plot Bending Moment Diagram
         plt.subplot(2, 1, 2)
-        plt.plot(x_vals, moment_vals, label="Bending Moment", color="red")
+        plt.plot(x_bending, y_bending, label="Bending Moment", color="red")
         plt.axhline(0, color="black", linewidth=0.5, linestyle="--")
         plt.title("Bending Moment Diagram")
         plt.xlabel("Position along the beam (m)")
@@ -404,10 +357,10 @@ class BeamAnalysis:
         plt.grid()
         plt.legend()
 
+        # Show the plots
         plt.tight_layout()
-        plt.savefig(save_path)
         plt.show()
-        plt.close()
+
 
     def analyze(self):
         """Run the complete beam analysis process."""
@@ -429,18 +382,14 @@ class BeamAnalysis:
         # Step 5: Calculate Reactions
         self.calculate_reactions()
 
-        # Step 6: Calculate Shear and Bending Moment Distributions
-        x_vals, shear_vals, moment_vals = self.calculate_shear_and_bending()
+        # Step 6: Calculate Shear Forces
+        shear_forces = self.calculate_shear_force()
 
-        # Step 7: Plot Diagrams for Shear Force and Bending Moments
-        save_path = "shear_and_bending_diagrams.png"
-        self.plot_diagrams(x_vals, shear_vals, moment_vals, save_path)
+        # Step 7: Calculate Bending Moments
+        bending_moments = self.calculate_bending_moment(shear_forces)
 
-        # Step 8: Summarize Key Results
-        print("\n=== Analysis Results ===")
-        print("Supports:")
-        for i, support in enumerate(self.supports):
-            print(f"Support {i + 1}: Type = {support['type']}, Position = {support['position']} m")
+        # Step 8: Plot Diagrams
+        self.plot_diagrams(shear_forces, bending_moments)
 
         print("\nFixed-End Moments:")
         for i, fem in enumerate(self.fixed_end_moments):
@@ -458,7 +407,7 @@ class BeamAnalysis:
         for i, reaction in enumerate(self.reactions):
             print(f"Support {i + 1}: Reaction = {reaction:.3f} kN")
 
-        print("\nShear Force and Bending Moment Diagrams saved to:", save_path)
+        # print("\nShear Force and Bending Moment Diagrams saved to:", save_path)
 
         print("\nAnalysis Complete.")
 
