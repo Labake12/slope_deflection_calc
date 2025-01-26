@@ -16,11 +16,15 @@ def clear_old_images():
         file_path = os.path.join(IMAGE_DIR, file)
         if os.path.isfile(file_path):
             os.remove(file_path)
+# @app.route('/home')
+# def index():
+#     """Render the index page."""
+#     return render_template('home.html') 
 
 @app.route('/')
 def index():
     """Render the index page."""
-    return render_template('index.html')
+    return render_template('home.html')
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
