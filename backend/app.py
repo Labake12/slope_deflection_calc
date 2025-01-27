@@ -1,94 +1,77 @@
 from flask import Flask, render_template, request, jsonify
-from sample import BeamAnalysis
+from testing import BeamAnalysis
 import os
+import logging
 
-app = Flask(__name__,
-            template_folder='./templates',
-            static_folder='./static')
+# Set up logging configuration
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Ensure a directory for images exists
+
+app = Flask(__name__, template_folder='./templates', static_folder='./static')
+
 IMAGE_DIR = 'static/images'
 os.makedirs(IMAGE_DIR, exist_ok=True)
 
 def clear_old_images():
-    """Delete old images from the images directory."""
+    """Delete old images."""
     for file in os.listdir(IMAGE_DIR):
         file_path = os.path.join(IMAGE_DIR, file)
         if os.path.isfile(file_path):
             os.remove(file_path)
-# @app.route('/home')
-# def index():
-#     """Render the index page."""
-#     return render_template('home.html') 
 
 @app.route('/')
 def index():
-    """Render the index page."""
-    return render_template('home.html')
+    """Render the home page."""
+    return render_template('index.html')
 
 @app.route('/analyze', methods=['POST'])
-def analyze():
-    """Handle beam analysis."""
+def analyze_beam():
     try:
-        total_supports = int(request.form['total_supports'])
-        supports = [
-            {
-                "type": request.form[f'support_{i}_type'],
-                "position": float(request.form[f'support_{i}_position'])
-            } for i in range(1, total_supports + 1)
-        ]
+        # Parse JSON input from the request
+        data = request.json
+        if not data:
+            return jsonify({"status": "error", "message": "No input data provided"}), 400
 
-        total_spans = len(supports) - 1
-        spans = []
-        for i in range(1, total_spans + 1):
-            ei = float(request.form[f'span_{i}_EI'])
-            num_loads = int(request.form[f'span_{i}_num_loads'])
-            loads = []
-            for j in range(1, num_loads + 1):
-                load_type = request.form[f'span_{i}_load_{j}_type']
-                if load_type == 'point':
-                    loads.append({
-                        "type": load_type,
-                        "magnitude": float(request.form[f'span_{i}_load_{j}_magnitude']),
-                        "position": float(request.form[f'span_{i}_load_{j}_position'])
-                    })
-                elif load_type == 'udl':
-                    loads.append({
-                        "type": load_type,
-                        "magnitude": float(request.form[f'span_{i}_load_{j}_magnitude'])
-                    })
-                elif load_type == 'vdl':
-                    loads.append({
-                        "type": load_type,
-                        "magnitude_start": float(request.form[f'span_{i}_load_{j}_magnitude_start']),
-                        "magnitude_end": float(request.form[f'span_{i}_load_{j}_magnitude_end'])
-                    })
-            spans.append({"EI": ei, "loads": loads})
+        supports = data.get('supports')
+        spans = data.get('spans')
 
-        # Perform analysis
-        beam = BeamAnalysis()
-        beam.supports = supports
-        beam.spans = spans
-        beam.calculate_fixed_end_moments()
-        beam.solve_theta_values()
-        beam.calculate_final_moments()
-        beam.calculate_reactions()
+        # Validate inputs
+        if not supports or not isinstance(supports, list):
+            return jsonify({"status": "error", "message": "Invalid or missing 'supports'"}), 400
+        if not spans or not isinstance(spans, list):
+            return jsonify({"status": "error", "message": "Invalid or missing 'spans'"}), 400
 
-        # Generate diagrams
-        clear_old_images()
-        x_vals, shear_vals, moment_vals = beam.calculate_shear_and_bending()
-        diagram_path = os.path.join(IMAGE_DIR, 'diagrams.png')
-        beam.plot_diagrams(x_vals, shear_vals, moment_vals, diagram_path)
+        # Initialize BeamAnalysis and run analysis
+        analysis = BeamAnalysis()
+        analysis.input_supports(supports)
+        analysis.input_spans(spans)
+        results = analysis.analyze()
 
+        # Log results for debugging
+        logging.debug(f"Analysis Results: {results}")
+
+        # Save generated diagram
+        diagram_path = os.path.join(IMAGE_DIR, 'diagram.png')
+        analysis.plot_diagrams(diagram_path)
+
+        # Return results as JSON
         return jsonify({
-            "fixed_end_moments": beam.fixed_end_moments,
-            "theta_values": beam.theta_values.tolist(),
-            "final_moments": beam.final_moments,
-            "reactions": beam.reactions,
-            "diagram_path": '/' + diagram_path
+            "status": "success",
+            "fixed_end_moments": results.get("fixed_end_moments"),
+            "theta_values": results.get("theta_values"),
+            "final_moments": results.get("final_moments"),
+            "reactions": results.get("reactions"),
+            "diagram_path": f"/{diagram_path}"  # Return as a relative URL
         })
+
+    except KeyError as e:
+        logging.error(f"Missing key in input data: {e}")
+        return jsonify({"status": "error", "message": f"Missing key: {str(e)}"}), 400
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        logging.error(f"Error during beam analysis: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)

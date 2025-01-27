@@ -3,27 +3,117 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Home - Beam Analysis Calculator</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>Beam Analysis Calculator</title>
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <!-- Navigation Bar -->
-    <nav>
-        <h1>Beam Analysis Calculator</h1>
-    </nav>
+    <h1>Beam Analysis Calculator</h1>
+    <form id="beam-form">
+        <h3>Supports</h3>
+        <div id="supports-container">
+            <label for="num-supports">Number of Supports:</label>
+            <input type="number" id="num-supports" name="num_supports" min="2" required>
+        </div>
+        <button type="button" onclick="addSupport()">Add Support</button>
 
-    <!-- Home Page Content -->
-    <div class="home-container">
-        <h2>Welcome to the Beam Analysis Calculator</h2>
-        <p>
-            This tool is designed to help engineers and students perform statically indeterminate beam analysis with ease. 
-            It allows you to input the details of a beam and get calculations on reactions, moments, and other essential 
-            parameters to evaluate its performance.
-        </p>
-        <p>
-            Click the button below to begin the calculation process by entering the beam details.
-        </p>
-        <a href="/">Go to Calculator</a>
-    </div>
+        <h3>Spans</h3>
+        <div id="spans-container"></div>
+        <button type="button" onclick="addSpan()">Add Span</button>
+
+        <button type="submit">Analyze</button>
+    </form>
+
+    <div id="results"></div>
+    <script>
+        document.getElementById("beam-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const supports = [];
+    const spans = [];
+
+    // Gather supports
+    document.querySelectorAll(".support").forEach((support, index) => {
+        supports.push({
+            type: support.querySelector(".type").value,
+            position: parseFloat(support.querySelector(".position").value),
+        });
+    });
+
+    // Gather spans
+    document.querySelectorAll(".span").forEach((span, index) => {
+        const loads = [];
+        span.querySelectorAll(".load").forEach((load) => {
+            loads.push({
+                type: load.querySelector(".type").value,
+                magnitude: parseFloat(load.querySelector(".magnitude").value),
+            });
+        });
+
+        spans.push({
+            EI: parseFloat(span.querySelector(".ei").value),
+            loads,
+        });
+    });
+
+    // Send data to the server
+    const response = await fetch("/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ supports, spans }),
+    });
+
+    const result = await response.json();
+    if (result.error) {
+        alert(`Error: ${result.error}`);
+    } else {
+        document.getElementById("results").innerHTML = `
+            <h3>Results</h3>
+            <p>Fixed-End Moments: ${JSON.stringify(result.fixed_end_moments)}</p>
+            <p>Reactions: ${JSON.stringify(result.reactions)}</p>
+            <img src="${result.diagram_path}" alt="Shear & Bending Moment Diagrams">
+        `;
+    }
+});
+
+function addSupport() {
+    const container = document.getElementById("supports-container");
+    const index = container.children.length;
+    container.innerHTML += `
+        <div class="support">
+            <label>Type:</label>
+            <input type="text" class="type" placeholder="hinged, fixed, roller" required>
+            <label>Position:</label>
+            <input type="number" class="position" min="0" required>
+        </div>
+    `;
+}
+
+function addSpan() {
+    const container = document.getElementById("spans-container");
+    const index = container.children.length;
+    container.innerHTML += `
+        <div class="span">
+            <label>EI:</label>
+            <input type="number" class="ei" min="0" required>
+            <button type="button" onclick="addLoad(this)">Add Load</button>
+            <div class="loads"></div>
+        </div>
+    `;
+}
+
+function addLoad(spanButton) {
+    const span = spanButton.closest(".span");
+    const loadContainer = span.querySelector(".loads");
+    loadContainer.innerHTML += `
+        <div class="load">
+            <label>Type:</label>
+            <input type="text" class="type" placeholder="point_center, udl" required>
+            <label>Magnitude:</label>
+            <input type="number" class="magnitude" required>
+        </div>
+    `;
+}
+
+    </script>
 </body>
 </html>

@@ -3,56 +3,250 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Beam Analysis</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>Interactive Beam Analysis</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-    <!-- Navigation Bar with Links -->
-    <nav>
-        <h1>Beam Analysis Calculator</h1>
-        <ul class="nav-links">
-            <li><a href="/home">Home</a></li>
-            <li><a href="/">Calculator</a></li>
-        </ul>
-    </nav>
-
-    <div class="container">
-        <!-- Form Section -->
-        <form action="/" method="POST">
-            <h2>Enter Beam Details</h2>
-
-            <label for="total_spans">Total Number of Supports:</label>
-            <input type="number" id="total_spans" name="total_spans" min="1" required><br><br>
-
-            <div id="span_details_container"></div>
-
-            <button type="submit">Calculate</button>
+<body class="bg-gray-100 p-6">
+    <div class="max-w-4xl mx-auto bg-white shadow-md rounded-lg p-6">
+        <h1 class="text-2xl font-bold text-gray-800 mb-4">Interactive Beam Analysis</h1>
+        <form id="beam-form">
+            <div id="dynamic-fields" class="space-y-6">
+                <!-- Supports Section -->
+                <div id="support-section">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-2">Supports</h3>
+                    <label class="block text-gray-600 mb-1">Enter the number of supports (minimum 2):</label>
+                    <input type="number" id="num-supports" min="2" required class="border rounded w-full p-2">
+                    <div id="support-fields" class="mt-4"></div>
+                </div>
+                <!-- Spans Section -->
+                <div id="span-section" class="hidden">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-2">Spans</h3>
+                    <label class="block text-gray-600 mb-1">Enter the number of spans:</label>
+                    <input type="number" id="num-spans" min="1" required class="border rounded w-full p-2">
+                    <div id="span-fields" class="mt-4"></div>
+                </div>
+            </div>
+            <button type="button" id="analyze-button" class="mt-4 bg-blue-500 text-white px-4 py-2 rounded shadow hover:bg-blue-600">
+                Analyze
+            </button>
         </form>
-
-        <!-- Results Section -->
-        {% if results %}
-        <div class="results-container">
-            <h2>Results</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Equation</th>
-                        <th>Expression</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for eq, value in results.items() %}
-                    <tr>
-                        <td>{{ eq }}</td>
-                        <td>{{ value }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% endif %}
+        <div id="results" class="mt-6 p-4 bg-gray-50 border rounded-lg"></div>
     </div>
 
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script>
+        const supportSection = document.getElementById('support-section');
+        const spanSection = document.getElementById('span-section');
+
+        document.getElementById('num-supports').addEventListener('change', () => {
+            generateSupportFields();
+
+            // After support fields are configured, show spans section
+            if (parseInt(document.getElementById('num-supports').value) >= 2) {
+                spanSection.classList.remove('hidden');
+            }
+        });
+
+        function generateSupportFields() {
+            const numSupports = parseInt(document.getElementById('num-supports').value);
+            const supportFields = document.getElementById('support-fields');
+            supportFields.innerHTML = '';
+
+            for (let i = 1; i <= numSupports; i++) {
+                supportFields.innerHTML += `
+                    <div class="mt-4">
+                        <h4 class="text-gray-700 font-medium">Support ${i}</h4>
+                        <label class="block text-gray-600 mt-2">Type of Support:</label>
+                        <select class="border rounded w-full p-2 support-type">
+                            <option value="hinged">Hinged</option>
+                            <option value="fixed">Fixed</option>
+                            <option value="roller">Roller</option>
+                        </select>
+                        <label class="block text-gray-600 mt-2">Position (in meters):</label>
+                        <input type="number" class="border rounded w-full p-2 support-position" step="0.1" min="0" required>
+                    </div>
+                `;
+            }
+        }
+
+        document.getElementById('num-spans').addEventListener('change', generateSpanFields);
+
+        function generateSpanFields() {
+            const numSpans = parseInt(document.getElementById('num-spans').value);
+            const spanFields = document.getElementById('span-fields');
+            spanFields.innerHTML = '';
+
+            for (let i = 1; i <= numSpans; i++) {
+                spanFields.innerHTML += `
+                    <div class="mt-4">
+                        <h4 class="text-gray-700 font-medium">Span ${i}</h4>
+                        <label class="block text-gray-600 mt-2">Modulus of Elasticity (E) (in kN/m²):</label>
+                        <input type="number" class="border rounded w-full p-2 span-e" step="0.1" required>
+                        <label class="block text-gray-600 mt-2">Moment of Inertia (I) (in m⁴):</label>
+                        <input type="number" class="border rounded w-full p-2 span-i" step="0.01" required>
+                        <label class="block text-gray-600 mt-2">Number of Loads:</label>
+                        <input type="number" class="border rounded w-full p-2 span-loads" min="0" required>
+                        <div class="load-fields mt-4" data-span="${i}"></div>
+                    </div>
+                `;
+            }
+
+            document.querySelectorAll('.span-loads').forEach(input => {
+                input.addEventListener('change', generateLoadFields);
+            });
+        }
+
+        function generateLoadFields(event) {
+            const loadFields = event.target.closest('div').querySelector('.load-fields');
+            const numLoads = parseInt(event.target.value);
+            const spanIndex = loadFields.dataset.span;
+            loadFields.innerHTML = '';
+
+            for (let i = 1; i <= numLoads; i++) {
+                loadFields.innerHTML += `
+                    <div class="mt-4">
+                        <h5 class="text-gray-600 font-medium">Load ${i} for Span ${spanIndex}</h5>
+                        <label class="block text-gray-600 mt-2">Load Type:</label>
+                        <select class="border rounded w-full p-2 load-type">
+                            <option value="1">None</option>
+                            <option value="2">Point load at center</option>
+                            <option value="3">Point load at distance 'a' and 'b'</option>
+                            <option value="4">Two equal point loads</option>
+                            <option value="5">Three equal point loads</option>
+                            <option value="6">Uniformly distributed load</option>
+                            <option value="7">Variable load (highest on right)</option>
+                            <option value="8">Variable load (highest on left)</option>
+                        </select>
+                        <label class="block text-gray-600 mt-2">Load Magnitude (kN):</label>
+                        <input type="number" class="border rounded w-full p-2 load-magnitude" step="0.1" required>
+                        <div class="extra-fields mt-2"></div>
+                    </div>
+                `;
+            }
+
+            document.querySelectorAll('.load-type').forEach(select => {
+                select.addEventListener('change', handleLoadTypeChange);
+            });
+        }
+
+        function handleLoadTypeChange(event) {
+            const loadType = parseInt(event.target.value);
+            const extraFields = event.target.closest('.mt-4').querySelector('.extra-fields');
+            extraFields.innerHTML = '';
+
+            if (loadType === 3) {
+                extraFields.innerHTML = `
+                    <label class="block text-gray-600 mt-2">Distance 'a' from left end (in meters):</label>
+                    <input type="number" class="border rounded w-full p-2 load-distance-a" step="0.1" required>
+                    <label class="block text-gray-600 mt-2">Distance 'b' from right end (in meters):</label>
+                    <input type="number" class="border rounded w-full p-2 load-distance-b" step="0.1" required>
+                `;
+            }
+        }
+
+
+        document.getElementById('analyze-button').addEventListener('click', async () => {
+    try {
+        const supports = [];
+        const spans = [];
+
+        // Gather supports data
+        document.querySelectorAll('#support-fields > div').forEach((supportDiv) => {
+            const type = supportDiv.querySelector('.support-type').value;
+            const position = parseFloat(supportDiv.querySelector('.support-position').value);
+            supports.push({ type, position });
+        });
+
+        // Gather spans data with validation
+        document.querySelectorAll('#span-fields > div').forEach((spanDiv) => {
+            const e = parseFloat(spanDiv.querySelector('.span-e').value);
+            const i = parseFloat(spanDiv.querySelector('.span-i').value);
+            
+            // Validation: Ensure e and i are not zero
+            if (e <= 0 || i <= 0) {
+                throw new Error("Modulus of Elasticity (E) and Moment of Inertia (I) must be greater than zero.");
+            }
+
+            const numLoads = parseInt(spanDiv.querySelector('.span-loads').value);
+            const loads = [];
+
+            // Calculate EI
+            const EI = e * i;
+
+            spanDiv.querySelectorAll('.load-fields > div').forEach((loadDiv) => {
+                const type = parseInt(loadDiv.querySelector('.load-type').value);
+                const magnitude = parseFloat(loadDiv.querySelector('.load-magnitude').value);
+                const load = { type, magnitude };
+
+                if (type === 3) {
+                    load.distanceA = parseFloat(loadDiv.querySelector('.load-distance-a').value);
+                    load.distanceB = parseFloat(loadDiv.querySelector('.load-distance-b').value);
+                }
+
+                loads.push(load);
+            });
+
+            spans.push({ EI, loads });
+        });
+
+        const payload = { supports, spans };
+
+        const response = await fetch('/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Error from server: ${errorText}`);
+        }
+
+        const result = await response.json();
+        displayResults(result);
+    } catch (error) {
+        console.error('Error:', error);
+        document.getElementById('results').innerHTML = `
+            <div class="text-red-500 font-bold">An error occurred: ${error.message}</div>
+        `;
+    }
+});
+
+
+function displayResults(result) {
+    if (result.status !== "success") {
+        document.getElementById('results').innerHTML = `
+            <div class="text-red-500 font-bold">Error: ${result.message}</div>
+        `;
+        return;
+    }
+
+    const resultsDiv = document.getElementById('results');
+    resultsDiv.innerHTML = `
+        <h2 class="text-xl font-semibold text-gray-800 mb-4">Analysis Results</h2>
+        <div class="text-gray-700 space-y-4">
+            <p><strong>Fixed End Moments:</strong><br> ${formatResults(result.fixed_end_moments)}</p>
+            <p><strong>Theta Values (Slopes):</strong><br> ${formatResults(result.theta_values)}</p>
+            <p><strong>Final Moments:</strong><br> ${formatResults(result.final_moments)}</p>
+            <p><strong>Reactions:</strong><br> ${formatResults(result.reactions)}</p>
+        </div>
+        <div class="mt-4">
+            <h3 class="text-lg font-semibold text-gray-800">Diagrams:</h3>
+            <img src="${result.diagram_path}" alt="Diagrams" class="mt-2 border rounded">
+        </div>
+    `;
+}
+
+// Helper function to format results as a string
+function formatResults(data) {
+    if (!data) return "No data available.";
+    if (typeof data === 'object') {
+        return Object.entries(data).map(([key, value]) => `${key}: ${value}`).join("<br>");
+    }
+    return data;
+}
+
+
+    </script>
 </body>
 </html>
