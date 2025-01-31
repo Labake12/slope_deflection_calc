@@ -4,13 +4,29 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Interactive Beam Analysis</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/static/style.css">
+    
 </head>
-<body class="bg-gray-100 p-6">
+<head>
+    <style>
+        @import url('https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css');
+    </style>
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="flex justify-between items-center p-4 bg-gray-800">
+        <div class="text-sm font-semibold flex items-center">
+            <span class="text-pink-400 text-xl">🏗️</span>
+            <span class="ml-2 text-lg">Slope Deflection Calculator</span>
+        </div>
+        <a href="/" class="text-white hover:text-pink-400 text-sm visited:text-white">Home</a>
+    </nav>
+</body>
+
+    <!-- Main Content -->
     <div class="max-w-4xl mx-auto bg-white shadow-md rounded-lg p-6">
-        <h1 class="text-2xl font-bold text-gray-800 mb-4">Interactive Beam Analysis</h1>
         <form id="beam-form">
+            <h1 class="text-2xl font-bold text-gray-800 mb-4">Interactive Beam Analysis</h1>
             <div id="dynamic-fields" class="space-y-6">
                 <!-- Supports Section -->
                 <div id="support-section">
@@ -146,7 +162,11 @@
 
 
         document.getElementById('analyze-button').addEventListener('click', async () => {
+    const analyzeButton = document.getElementById('analyze-button');
     try {
+        analyzeButton.innerHTML = "Analyzing...";
+        analyzeButton.disabled = true;
+
         const supports = [];
         const spans = [];
 
@@ -162,15 +182,12 @@
             const e = parseFloat(spanDiv.querySelector('.span-e').value);
             const i = parseFloat(spanDiv.querySelector('.span-i').value);
             
-            // Validation: Ensure e and i are not zero
             if (e <= 0 || i <= 0) {
                 throw new Error("Modulus of Elasticity (E) and Moment of Inertia (I) must be greater than zero.");
             }
 
             const numLoads = parseInt(spanDiv.querySelector('.span-loads').value);
             const loads = [];
-
-            // Calculate EI
             const EI = e * i;
 
             spanDiv.querySelectorAll('.load-fields > div').forEach((loadDiv) => {
@@ -199,19 +216,22 @@
 
         if (!response.ok) {
             const errorText = await response.text();
-            throw new Error(`Error from server: ${errorText}`);
+            throw new Error(`Server error: ${errorText}`);
         }
 
         const result = await response.json();
         displayResults(result);
+
     } catch (error) {
         console.error('Error:', error);
         document.getElementById('results').innerHTML = `
-            <div class="text-red-500 font-bold">An error occurred: ${error.message}</div>
+            <div class="text-red-500 font-bold">Error: ${error.message}</div>
         `;
+    } finally {
+        analyzeButton.innerHTML = "Analyze";
+        analyzeButton.disabled = false;
     }
 });
-
 
 function displayResults(result) {
     if (result.status !== "success") {
@@ -221,27 +241,31 @@ function displayResults(result) {
         return;
     }
 
-    const resultsDiv = document.getElementById('results');
-    resultsDiv.innerHTML = `
-        <h2 class="text-xl font-semibold text-gray-800 mb-4">Analysis Results</h2>
-        <div class="text-gray-700 space-y-4">
-            <p><strong>Fixed End Moments:</strong><br> ${formatResults(result.fixed_end_moments)}</p>
-            <p><strong>Theta Values (Slopes):</strong><br> ${formatResults(result.theta_values)}</p>
+    const formattedFEM = result.fixed_end_moments.map((fem, index) => 
+        `Span ${index + 1}: AB = ${fem.AB?.toFixed(4) || 0} kNm, BA = ${fem.BA?.toFixed(4) || 0} kNm`
+    ).join('<br>');
+
+    document.getElementById('results').innerHTML = `
+        <h2 class="text-xl font-semibold text-gray-800 mb-8">Analysis Results</h2>
+        <div class="container">
+            <p><strong>Fixed End Moments:</strong><br> ${formattedFEM}</p>
+            <p><strong>Theta Values (Slopes):</strong><br> ${result.theta_values?.join(', ') || 'None'}</p>
             <p><strong>Final Moments:</strong><br> ${formatResults(result.final_moments)}</p>
             <p><strong>Reactions:</strong><br> ${formatResults(result.reactions)}</p>
         </div>
-        <div class="mt-4">
+        <div class="mt-4 graph">
             <h3 class="text-lg font-semibold text-gray-800">Diagrams:</h3>
-            <img src="${result.diagram_path}" alt="Diagrams" class="mt-2 border rounded">
+            <img src="${result.diagram_path}" alt="Diagrams" class="mt-2 border rounded w-full">
         </div>
     `;
 }
 
-// Helper function to format results as a string
 function formatResults(data) {
     if (!data) return "No data available.";
     if (typeof data === 'object') {
-        return Object.entries(data).map(([key, value]) => `${key}: ${value}`).join("<br>");
+        return Object.entries(data).map(([key, value]) => 
+            `${key}: ${typeof value === 'number' ? value.toFixed(4) : value}`
+        ).join("<br>");
     }
     return data;
 }

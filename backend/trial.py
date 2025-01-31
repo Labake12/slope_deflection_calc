@@ -22,6 +22,10 @@ class BeamAnalysis:
         # List to store reactions at supports (forces and moments exerted by the supports on the beam)
         self.reactions = []
 
+        self.shear_force = []
+        
+        self.bending_moment = []
+
     def input_supports(self):
         """
         Input and configure supports for the beam.
@@ -338,239 +342,145 @@ class BeamAnalysis:
         for i, reaction in enumerate(self.reactions):
             print(f"Support {i + 1} (Position {self.supports[i]['position']} m): {reaction:.3f} kN\n")
 
-    # def calculate_shear_force(self):
-    #     """Calculate shear forces at critical points along the beam."""
-    #     print("\nCalculating Shear Forces...")
-    #     shear_forces = []
-
-    #     # Loop through each span
-    #     for i, span in enumerate(self.spans):
-    #         l = self.supports[i + 1]["position"] - self.supports[i]["position"]
-    #         reaction_a = self.reactions[i]
-    #         reaction_b = self.reactions[i + 1]
-
-    #         # Start of the span
-    #         sf = reaction_a
-    #         shear_forces.append((self.supports[i]["position"], sf))
-
-    #         # Process loads
-    #         for load in span["loads"]:
-    #             load_type = load["type"]
-
-    #             if load_type == "point_distance":
-    #                 p = load["magnitude"]
-    #                 a = load["a"]
-
-    #                 # Just left of the point load
-    #                 shear_forces.append((self.supports[i]["position"] + a, sf))
-
-    #                 # Just right of the point load
-    #                 sf -= p
-    #                 shear_forces.append((self.supports[i]["position"] + a, sf))
-
-    #             elif load_type == "udl":
-    #                 w = load["magnitude"]
-
-    #                 # Just left of the end of UDL
-    #                 sf_mid = sf - w * l
-    #                 shear_forces.append((self.supports[i + 1]["position"], sf_mid))
-
-    #                 # Update the final shear force at the end of the span
-    #                 sf -= w * l
-    #                 shear_forces.append((self.supports[i + 1]["position"], sf))
-
-    #         # End of the span
-    #         shear_forces.append((self.supports[i + 1]["position"], 0))
-
-    #     # Print results
-    #     print("\nShear Force Values:")
-    #     for position, sf in shear_forces:
-    #         print(f"S.F at Position {position:.2f} m: {sf:.2f} kN")
-
-    #     return shear_forces
-
-    # def calculate_bending_moment(self, shear_forces):
-    #     """Calculate bending moments at critical points along the beam."""
-    #     print("\nCalculating Bending Moments...")
-    #     bending_moments = []
-
-    #     # Start from the left end of the beam
-    #     bm = 0
-    #     bending_moments.append((shear_forces[0][0], bm))
-
-    #     # Loop through the shear force results
-    #     for i in range(len(shear_forces) - 1):
-    #         x1, sf1 = shear_forces[i]
-    #         x2, sf2 = shear_forces[i + 1]
-
-    #         # Linear variation of bending moment between points
-    #         bm += sf1 * (x2 - x1)
-    #         bending_moments.append((x2, bm))
-
-    #     # Print results
-    #     print("\nBending Moment Values:")
-    #     for position, bm in bending_moments:
-    #         print(f"Position: {position:.2f} m, Bending Moment: {bm:.2f} kNm")
-
-    #     return bending_moments
 
     def calculate_shear_force(self):
-        """Calculate shear forces at critical points along the beam."""
-        print("\nCalculating Shear Forces...")
-        shear_forces = []  # List to store shear force values at critical points
+        position_along_beam = [self.supports[0]["position"]]
+        shear_forces = [0]
+        sf = 0
+        cumulative_position = 0
 
         for i, span in enumerate(self.spans):
-            # Determine the span length and reactions at supports
             l = self.supports[i + 1]["position"] - self.supports[i]["position"]
             reaction_a = self.reactions[i]
             reaction_b = self.reactions[i + 1]
 
-            # Initialize shear force at the left end of the span
-            sf = reaction_a
-            shear_forces.append((self.supports[i]["position"], sf))  # Shear at the start of the span
+            sf += reaction_a
+            position_along_beam.append(cumulative_position)
+            shear_forces.append(sf)
 
-            # Process each load within the span
             for load in span["loads"]:
-                load_type = load["type"]
-
-                if load_type == "udl":
-                    # Uniformly Distributed Load (UDL)
-                    w = load["magnitude"]
-
-                    # Calculate shear force at the right end of the span under UDL
-                    shear_forces.append((self.supports[i + 1]["position"], sf - w * l))
-
-                    # Update the shear force value after accounting for the UDL
-                    sf -= w * l
-
-                elif load_type == "point_distance":
-                    # Point Load at a specific distance along the span
+                if load["type"] == "point_center":
+                    p = load["magnitude"]
+                    load_position = cumulative_position + l / 2
+                    position_along_beam.append(load_position)
+                    shear_forces.append(sf)
+                    sf -= p
+                    position_along_beam.append(load_position)
+                    shear_forces.append(sf)
+                elif load["type"] == "point_distance":
                     p = load["magnitude"]
                     a = load["a"]
-                    load_position = self.supports[i]["position"] + a
-
-                    # Record shear force just before the point load
-                    shear_forces.append((load_position, sf))
-
-                    # Record shear force just after the point load
+                    load_position = cumulative_position + a
+                    position_along_beam.append(load_position)
+                    shear_forces.append(sf)
                     sf -= p
-                    shear_forces.append((load_position, sf))
+                    position_along_beam.append(load_position)
+                    shear_forces.append(sf)
+                elif load["type"] == "udl":
+                    w = load["magnitude"]
+                    num_divisions = 100
+                    step_size = l / num_divisions
+                    for j in range(1, num_divisions + 1):
+                        x = cumulative_position + j * step_size
+                        sf -= w * step_size
+                        position_along_beam.append(x)
+                        shear_forces.append(sf)
+                elif load["type"] == "vdl_right":
+                    w = load["magnitude"]
+                    num_divisions = 100
+                    step_size = l / num_divisions
+                    for j in range(1, num_divisions + 1):
+                        x = cumulative_position + j * step_size
+                        sf -= (w * x / l) * step_size
+                        position_along_beam.append(x)
+                        shear_forces.append(sf)
+                elif load["type"] == "vdl_left":
+                    w = load["magnitude"]
+                    num_divisions = 100
+                    step_size = l / num_divisions
+                    for j in range(1, num_divisions + 1):
+                        x = cumulative_position + j * step_size
+                        sf -= (w * (l - x) / l) * step_size
+                        position_along_beam.append(x)
+                        shear_forces.append(sf)
 
-                elif load_type == "point_center":
-                    # Point Load located at the center of the span
-                    p = load["magnitude"]
-                    a = l / 2
-                    load_position = self.supports[i]["position"] + a
-
-                    # Record shear force just before the point load
-                    shear_forces.append((load_position, sf))
-
-                    # Record shear force just after the point load
-                    sf -= p
-                    shear_forces.append((load_position, sf))
-
-            # Account for the reaction at the right end of the span
             sf += reaction_b
-            shear_forces.append((self.supports[i + 1]["position"], sf))
+            cumulative_position += l
+            position_along_beam.append(cumulative_position)
+            shear_forces.append(sf)
 
-        # Output shear force values for each critical point
-        print("\nShear Force Values:")
-        for pos, sf in shear_forces:
-            print(f"Position: {pos:.2f} m, Shear Force: {sf:.2f} kN")
+        return {"shear_forces": shear_forces, "position_along_beam": position_along_beam}
 
-        return shear_forces
+    def calculate_bending_moment(self, shear_data):
+        position_along_beam = shear_data["position_along_beam"]
+        shear_forces = shear_data["shear_forces"]
 
-
-    def calculate_bending_moment(self, shear_forces):
-        """Calculate bending moments at critical points along the beam."""
-        print("\nCalculating Bending Moments...")
-        bending_moments = []  # List to store bending moment values at critical points
-
-        # Initialize bending moment at the leftmost support
+        bending_moments = []
         bm = 0
-        bending_moments.append((shear_forces[0][0], bm))  # Moment at the start of the beam
+        bending_moments.append((position_along_beam[0], bm))
 
-        # Iterate through shear force data to calculate bending moments
-        for i in range(len(shear_forces) - 1):
-            x1, sf1 = shear_forces[i]
-            x2, sf2 = shear_forces[i + 1]
+        for i in range(len(position_along_beam) - 1):
+            x1 = position_along_beam[i]
+            x2 = position_along_beam[i + 1]
+            sf_avg = (shear_forces[i] + shear_forces[i + 1]) / 2
+            bm += sf_avg * (x2 - x1)
+            bending_moments.append((x2, bm))
 
-            # Integrate the shear force over the span to calculate bending moment
-            bm += sf1 * (x2 - x1)
-            bending_moments.append((x2, bm))  # Store bending moment at the current position
-
-        # Output bending moment values for each critical point
-        print("\nBending Moment Values:")
-        for pos, bm in bending_moments:
-            print(f"Position: {pos:.2f} m, Bending Moment: {bm:.2f} kNm")
-
-        return bending_moments
+        return {"bending_moments": [bm[1] for bm in bending_moments], "position_along_beam": position_along_beam}
 
 
-    def plot_diagrams(self, shear_forces, bending_moments):
+    def plot_diagrams(self, shear_data, bending_data):
         """Plot shear force and bending moment diagrams."""
         plt.figure(figsize=(12, 8))  # Set the figure size for the diagrams
 
-        # Extract positions and corresponding values from shear forces and bending moments
-        x_shear = [point[0] for point in shear_forces]  # Positions for shear force diagram
-        y_shear = [point[1] for point in shear_forces]  # Shear forces
-        x_bending = [point[0] for point in bending_moments]  # Positions for bending moment diagram
-        y_bending = [point[1] for point in bending_moments]  # Bending moments
+        # Extract correct values from dictionaries
+        x_shear = shear_data["position_along_beam"]
+        y_shear = shear_data["shear_forces"]
+        x_bending = bending_data["position_along_beam"]
+        y_bending = bending_data["bending_moments"]
 
-        # Plot the Shear Force Diagram
-        plt.subplot(2, 1, 1)  # Create the first subplot (2 rows, 1 column, 1st plot)
-        plt.step(x_shear, y_shear, where="post", label="Shear Force", color="blue")  # Step plot for shear force
-        plt.axhline(0, color="black", linewidth=0.5, linestyle="--")  # Add horizontal line at y=0 for reference
-        plt.title("Shear Force Diagram")  # Title of the diagram
-        plt.xlabel("Position along the beam (m)")  # Label for the x-axis
-        plt.ylabel("Shear Force (kN)")  # Label for the y-axis
-        plt.grid()  # Add gridlines for better visualization
-        plt.legend()  # Display legend
+        # Plot the Shear Force Diagram with straight-line segments
+        plt.subplot(2, 1, 1)
+        plt.plot(x_shear, y_shear, label="Shear Force", color="blue", linestyle="-")  # Use straight lines
+        plt.axhline(0, color="black", linewidth=0.5, linestyle="--")  
+        plt.title("Shear Force Diagram")  
+        plt.xlabel("Position along the beam (m)")  
+        plt.ylabel("Shear Force (kN)")  
+        plt.grid()  
+        plt.legend()  
 
         # Plot the Bending Moment Diagram
-        plt.subplot(2, 1, 2)  # Create the second subplot (2 rows, 1 column, 2nd plot)
-        plt.plot(x_bending, y_bending, label="Bending Moment", color="red")  # Line plot for bending moment
-        plt.axhline(0, color="black", linewidth=0.5, linestyle="--")  # Add horizontal line at y=0 for reference
-        plt.title("Bending Moment Diagram")  # Title of the diagram
-        plt.xlabel("Position along the beam (m)")  # Label for the x-axis
-        plt.ylabel("Bending Moment (kNm)")  # Label for the y-axis
-        plt.grid()  # Add gridlines for better visualization
-        plt.legend()  # Display legend
+        plt.subplot(2, 1, 2)
+        plt.plot(x_bending, y_bending, label="Bending Moment", color="red")  
+        plt.axhline(0, color="black", linewidth=0.5, linestyle="--")  
+        plt.title("Bending Moment Diagram")  
+        plt.xlabel("Position along the beam (m)")  
+        plt.ylabel("Bending Moment (kNm)")  
+        plt.grid()  
+        plt.legend()  
 
-        # Adjust layout to ensure plots do not overlap and display the diagrams
+        # Adjust layout and show the plots
         plt.tight_layout()
         plt.show()
 
     def analyze(self):
         """Run the complete beam analysis process."""
-        print("Starting Beam Analysis...")  # Notify the user that the analysis is starting
+        print("Starting Beam Analysis...")
 
-        # Step 1: Input supports and spans
-        self.input_supports()  # Gather information about the beam's supports
-        self.input_spans()  # Gather information about the spans of the beam
+        self.input_supports()
+        self.input_spans()
+        self.calculate_fixed_end_moments()
+        self.solve_theta_values()
+        self.calculate_final_moments()
+        self.calculate_reactions()
 
-        # Step 2: Calculate Fixed-End Moments
-        self.calculate_fixed_end_moments()  # Compute fixed-end moments for each span
+        # ✅ Compute shear force and bending moment
+        shear_data = self.calculate_shear_force()
+        bending_data = self.calculate_bending_moment(shear_data)
 
-        # Step 3: Solve for Theta Values
-        self.solve_theta_values()  # Calculate slopes (rotations) at supports
+        # ✅ Pass the entire dictionary to `plot_diagrams`
+        self.plot_diagrams(shear_data, bending_data)
 
-        # Step 4: Calculate Final Moments
-        self.calculate_final_moments()  # Compute final moments using compatibility and equilibrium
-
-        # Step 5: Calculate Reactions
-        self.calculate_reactions()  # Determine reactions at the supports
-
-        # Step 6: Calculate Shear Forces
-        shear_forces = self.calculate_shear_force()  # Compute shear forces across the beam
-
-        # Step 7: Calculate Bending Moments
-        bending_moments = self.calculate_bending_moment(shear_forces)  # Compute bending moments across the beam
-
-        # Step 8: Plot Diagrams
-        self.plot_diagrams(shear_forces, bending_moments)  # Visualize shear force and bending moment diagrams
-
-        # Display calculated results for fixed-end moments, theta values, final moments, and reactions
         print("\nFixed-End Moments:")
         for i, fem in enumerate(self.fixed_end_moments):
             print(f"Span {i + 1}: FEM_AB = {fem['AB']:.3f} kNm, FEM_BA = {fem['BA']:.3f} kNm")
@@ -587,7 +497,7 @@ class BeamAnalysis:
         for i, reaction in enumerate(self.reactions):
             print(f"Support {i + 1}: Reaction = {reaction:.3f} kN")
 
-        print("\nAnalysis Complete.")  # Notify the user that the analysis is finished
+        print("\nAnalysis Complete.")
 
 # Main program execution
 beam = BeamAnalysis()  # Create an instance of the BeamAnalysis class
