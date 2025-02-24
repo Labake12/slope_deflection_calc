@@ -5,34 +5,90 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Slope Deflection Calculator</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Jockey+One&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <style>
+        @font-face {
+            font-family: "Geist Mono";
+            src: url("{{ url_for('static', filename='fonts/GeistMonoVF.woff') }}") format("woff");
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        body {
+            font-family: "Jockey One", sans-serif;
+            background: linear-gradient(to top left, #111827, #1F2937, #111827);
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Animated Background Blobs */
+        .blob {
+            position: absolute;
+            width: 500px;
+            height: 500px;
+            background: rgba(236, 72, 153, 0.2);
+            filter: blur(120px);
+            border-radius: 50%;
+            animation: moveBlobs 25s infinite linear alternate;
+        }
+
+        .blob:nth-child(2) {
+            background: rgba(236, 72, 153, 0.15);
+            left: 60%;
+            top: 10%;
+            animation-duration: 30s;
+        }
+
+        @keyframes moveBlobs {
+            0% {
+                transform: translate(0, 0) scale(1);
+            }
+            100% {
+                transform: translate(-50px, -50px) scale(1.2);
+            }
+        }
+    </style>
 </head>
-<body class="bg-gray-900 text-white">
-    <nav class="flex justify-between items-center p-4 bg-gray-800">
+    
+<body class="text-white min-h-screen relative overflow-hidden">
+    <!-- Animated Background Blobs -->
+    <div class="blob"></div>
+    <div class="blob"></div>
+    
+    <!-- Navbar -->
+    <nav class="flex justify-between items-center p-4 bg-gray-800 fixed top-0 w-full shadow-md z-50">
         <div class="text-sm font-semibold flex items-center">
             <span class="text-pink-400 text-xl">🏗️</span>
             <span class="ml-2 text-lg">Slope Deflection Calculator</span>
         </div>
         <a href="/beam" class="text-white hover:text-pink-400 text-sm">Beam Calculator</a>
     </nav>
-</body>
 
-    <section class="flex flex-col items-center text-center mt-20">
-        <h1 class="text-5xl font-bold">CEG 410 - Slope Deflection Calculator</h1>
-        <p class="mt-4 text-gray-400">A comprehensive tool designed for structural engineers, using the slope deflection method to solve complex beam problems. 
-            <br/>It helps calculate beam deflections, internal moments, and reactions with high precision, making the analysis of statically indeterminate beams easier and faster.</p>
-        <div class="mt-6 flex space-x-4">
-            <a href="/beam" class="px-6 py-3 bg-pink-500 hover:bg-pink-600 rounded-lg text-lg">Beams →</a>
-      
+    <!-- Hero Section -->
+    <section class="flex flex-col items-center text-center mt-24 px-6 relative z-10">
+        <h1 class="text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-400 to-pink-600">
+            CEG 410 - Slope Deflection Calculator
+        </h1>
+        <p class="mt-4 text-gray-400 max-w-2xl">
+            A comprehensive tool designed for structural engineers, using the slope deflection method to solve complex beam problems. It helps calculate beam deflections, internal moments, and reactions with high precision, making the analysis of statically indeterminate beams easier and faster.
+        </p>
+
+        <!-- Single Beam Button -->
+        <div class="mt-6">
+            <a href="/beam" class="px-6 py-3 bg-pink-500 hover:bg-pink-600 rounded-lg text-lg">BEAMS →</a>
         </div>
     </section>
 
-    <section class="mt-10 flex justify-center items-center gap-x-8 px-10">
-        <div class="bg-gray-800 p-6 rounded-lg text-center w-80">
+    <!-- Features Section -->
+    <section class="mt-10 flex justify-center items-center gap-x-8 px-10 relative z-10">
+        <div class="bg-gray-800 p-6 rounded-lg text-center w-80 border border-gray-700 hover:border-pink-400/50 transition-all">
             <span class="text-blue-400 text-3xl">📐</span>
-            <h3 class="text-xl font-semibold mt-4">Comprehensive Analysis</h3>
-            <p class="text-gray-400 mt-2">Explains that the tool performs slope deflection analysis to solve statically indeterminate beams.</p>
+            <h3 class="text-xl font-semibold mt-4">Advanced Beam Analysis</h3>
+            <p class="text-gray-400 mt-2">Performs slope deflection analysis to solve statically indeterminate beams.</p>
         </div>
-        <div class="bg-gray-800 p-6 rounded-lg text-center w-80">
+        <div class="bg-gray-800 p-6 rounded-lg text-center w-80 border border-gray-700 hover:border-pink-400/50 transition-all">
             <span class="text-blue-400 text-3xl">📊</span>
             <h3 class="text-xl font-semibold mt-4">Detailed Structural Insights</h3>
             <p class="text-gray-400 mt-2">Calculates fixed-end moments, rotations (θ), final moments, reactions, shear force, and bending moment.</p>

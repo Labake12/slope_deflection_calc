@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Interactive Beam Analysis</title>
     <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
     
 </head>
 <head>
@@ -12,42 +14,41 @@
         @import url('https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css');
     </style>
 </head>
-<body>
+<body class="min-h-screen bg-gradient-to-tl from-gray-900 via-gray-800 to-gray-900 text-white">
     <!-- Navigation Bar -->
-    <nav class="flex justify-between items-center p-4 bg-gray-800">
-        <div class="text-sm font-semibold flex items-center">
-            <span class="text-pink-400 text-xl">🏗️</span>
-            <span class="ml-2 text-lg">Slope Deflection Calculator</span>
+    <nav class="flex justify-between items-center p-6 bg-gray-800/50 backdrop-blur-lg shadow-lg rounded-b-2xl">
+        <div class="text-lg font-bold flex items-center gap-2">
+            <span class="text-pink-400 text-2xl">🏗️</span>
+            <span class="bg-clip-text text-transparent bg-gradient-to-r from-pink-400 to-pink-600">Slope Deflection Calculator</span>
         </div>
-        <a href="/" class="text-white hover:text-pink-400 text-sm visited:text-white">Home</a>
+        <a href="/" class="text-white/80 hover:text-pink-400 transition">Home</a>
     </nav>
-</body>
 
     <!-- Main Content -->
-    <div class="max-w-4xl mx-auto bg-white shadow-md rounded-lg p-6">
-        <form id="beam-form">
-            <h1 class="text-2xl font-bold text-gray-800 mb-4">Interactive Beam Analysis</h1>
-            <div id="dynamic-fields" class="space-y-6">
-                <!-- Supports Section -->
-                <div id="support-section">
-                    <h3 class="text-lg font-semibold text-gray-700 mb-2">Supports</h3>
-                    <label class="block text-gray-600 mb-1">Enter the number of supports (minimum 2):</label>
-                    <input type="number" id="num-supports" min="2" required class="border rounded w-full p-2">
-                    <div id="support-fields" class="mt-4"></div>
+    <div class="flex-grow flex items-center justify-center py-12 px-6">
+        <div class="max-w-4xl w-full bg-white/5 backdrop-blur-lg shadow-2xl rounded-3xl p-10 border border-pink-400/20 hover:border-pink-400/40 transition-all">
+            <form id="beam-form">
+                <h1 class="text-3xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-pink-400 to-pink-600 mb-8 text-center">Interactive Beam Analysis</h1>
+                <div id="dynamic-fields" class="space-y-8">
+                    <!-- Supports Section -->
+                    <div id="support-section">
+                        <h3 class="text-xl font-semibold bg-clip-text text-transparent bg-gradient-to-r from-pink-400 to-pink-600 mb-4">Supports</h3>
+                        <label class="block text-white/70 mb-2">Enter the number of supports (minimum 2):</label>
+                        <input type="number" id="num-supports" min="2" required class="border border-pink-400/20 rounded-lg w-full p-3 bg-gray-900/50 text-white focus:ring-2 focus:ring-pink-500">
+                        <div id="support-fields" class="mt-4"></div>
+                    </div>
+                    <!-- Spans Section -->
+                    <div id="span-section" class="hidden">
+                        <h3 class="text-xl font-semibold bg-clip-text text-transparent bg-gradient-to-r from-pink-400 to-pink-600 mb-4">Spans</h3>
+                        <label class="block text-white/70 mb-2">Enter the number of spans:</label>
+                        <input type="number" id="num-spans" min="1" required class="border border-pink-400/20 rounded-lg w-full p-3 bg-gray-900/50 text-white focus:ring-2 focus:ring-pink-500">
+                        <div id="span-fields" class="mt-4"></div>
+                    </div>
                 </div>
-                <!-- Spans Section -->
-                <div id="span-section" class="hidden">
-                    <h3 class="text-lg font-semibold text-gray-700 mb-2">Spans</h3>
-                    <label class="block text-gray-600 mb-1">Enter the number of spans:</label>
-                    <input type="number" id="num-spans" min="1" required class="border rounded w-full p-2">
-                    <div id="span-fields" class="mt-4"></div>
-                </div>
-            </div>
-            <button type="button" id="analyze-button" class="mt-4 bg-blue-500 text-white px-4 py-2 rounded shadow hover:bg-blue-600">
-                Analyze
-            </button>
-        </form>
-        <div id="results" class="mt-6 p-4 bg-gray-50 border rounded-lg"></div>
+                <button type="button" id="analyze-button" class="mt-6 w-full bg-pink-600 hover:bg-pink-700 text-white py-3 rounded-xl shadow-lg transition">Analyze</button>
+            </form>
+            <div id="results" class="mt-6 p-4 bg-gray-50 border rounded-lg"></div>
+        </div>
     </div>
 
     <script>
@@ -241,9 +242,27 @@ function displayResults(result) {
         return;
     }
 
-    const formattedFEM = result.fixed_end_moments.map((fem, index) => 
-        `Span ${index + 1}: AB = ${fem.AB?.toFixed(4) || 0} kNm, BA = ${fem.BA?.toFixed(4) || 0} kNm`
+    const formattedFEM = result.fixed_end_moments.map((fem, index) => {
+        const keys = Object.keys(fem); // Dynamically get span names
+        return `Span ${index + 1}: ${keys[0]} = ${fem[keys[0]]?.toFixed(4) || 0} kNm, 
+            ${keys[1]} = ${fem[keys[1]]?.toFixed(4) || 0} kNm`;
+    }).join('<br>');
+    
+    // const formattedSlopeDeflection = result.slope_deflection_eq && result.slope_deflection_eq.length > 0
+    //     ? result.slope_deflection_eq.map(eq => `<p>${eq}</p>`).join('')
+    //     : "<p>No Slope Deflection Equation found.</p>";
+
+    const formattedShearForces = result.shear_forces.map((sf) => 
+        `Position: ${sf[0].toFixed(4)} m, Shear Force: ${sf[1].toFixed(4)} kN`
     ).join('<br>');
+
+    const formattedBendingMoments = result.bending_moments.map((bm) => 
+        `Position: ${bm[0].toFixed(4)} m, Bending Moment: ${bm[1].toFixed(4)} kNm`
+    ).join('<br>');
+
+    const maxBM = result.max_bending_moment 
+    ? `Max Bending Moment: ${result.max_bending_moment.value.toFixed(4)} kNm at ${result.max_bending_moment.position.toFixed(4)} m`
+    : "Max Bending Moment: Not Found";
 
     document.getElementById('results').innerHTML = `
         <h2 class="text-xl font-semibold text-gray-800 mb-8">Analysis Results</h2>
@@ -252,6 +271,9 @@ function displayResults(result) {
             <p><strong>Theta Values (Slopes):</strong><br> ${result.theta_values?.join(', ') || 'None'}</p>
             <p><strong>Final Moments:</strong><br> ${formatResults(result.final_moments)}</p>
             <p><strong>Reactions:</strong><br> ${formatResults(result.reactions)}</p>
+            <p><strong>Shear Forces:</strong><br> ${formattedShearForces}</p>
+            <p><strong>Bending Moments:</strong><br> ${formattedBendingMoments}</p>
+            <p><strong>Maximum Bending Moment:</strong><br> ${maxBM}</p>
         </div>
         <div class="mt-4 graph">
             <h3 class="text-lg font-semibold text-gray-800">Diagrams:</h3>

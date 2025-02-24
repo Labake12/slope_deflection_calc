@@ -7,9 +7,15 @@ import numpy as np
 # Set up logging configuration
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
-app = Flask(__name__, template_folder='./templates', static_folder='./static')
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+STATIC_DIR = os.path.join(BASE_DIR, 'static')
 
-IMAGE_DIR = 'static/images'
+app = Flask(__name__, template_folder='./templates', static_folder=STATIC_DIR)
+# app = Flask(__name__, template_folder='./templates', static_url_path='/static', static_folder='./static')
+
+# IMAGE_DIR = './static/images'
+# os.makedirs(IMAGE_DIR, exist_ok=True)
+IMAGE_DIR = os.path.join(STATIC_DIR, 'images')
 os.makedirs(IMAGE_DIR, exist_ok=True)
 
 def clear_old_images():
@@ -47,6 +53,11 @@ def analyze_beam():
         supports = data.get('supports')
         spans = data.get('spans')
 
+        print("\n=== DEBUG: Incoming API Data ===")
+        print("Supports:", supports)
+        print("Spans:", spans)
+
+
         # Convert load types from integers to descriptive strings
         load_type_mapping = {
             2: "point_center",
@@ -82,18 +93,44 @@ def analyze_beam():
         analysis.input_spans(spans)
         results = analysis.analyze()
 
+        max_bm, max_bm_pos = analysis.find_max_bending_moment(results["shear_forces"], results["bending_moments"])
+        results["max_bending_moment"] = {"value": max_bm, "position": max_bm_pos}
+        
+        # Generate slope Equations **BEFORE returning results**
+        # slope_deflection = analysis.generate_slope_equations()
+        # results["slope_deflection_eq"] = convert_to_serializable(slope_deflection)
+
+        # # Debugging output
+        # print("Debug: Slope Deflection Equations Generated", slope_deflection)
+        
         # Save diagram and return results
         diagram_path = os.path.join(IMAGE_DIR, 'diagram.png')
         analysis.plot_diagrams(results["shear_forces"], results["bending_moments"], diagram_path)
-
+        
+        fixed_end_moments_result = []
+        for i, fem in enumerate(results["fixed_end_moments"]):
+            start_letter = chr(65 + i)
+            end_letter = chr(65 + i + 1)
+            span_name_forward = f"{start_letter}{end_letter}"
+            span_name_backward = f"{end_letter}{start_letter}"
+            fixed_end_moments_result.append({
+                span_name_forward: fem.get(span_name_forward, 0),
+                span_name_backward: fem.get(span_name_backward, 0)
+            })
+ 
         return jsonify({
             "status": "success",
-            "fixed_end_moments": [{"AB": fem["AB"], "BA": fem["BA"]} for fem in results["fixed_end_moments"]],
+            "fixed_end_moments": fixed_end_moments_result,
+            # "slope_deflection_equations": results["slope_deflection_eq"],
             "theta_values": convert_to_serializable(results["theta_values"]),
             "final_moments": convert_to_serializable(results["final_moments"]),
             "reactions": convert_to_serializable(results["reactions"]),
-            "diagram_path": f"/{diagram_path}"
+            "shear_forces": convert_to_serializable(results["shear_forces"]),
+            "bending_moments": convert_to_serializable(results["bending_moments"]),
+            "max_bending_moment": results["max_bending_moment"],
+            "diagram_path": f"static/images/diagram.png"
         })
+    
     except Exception as e:
         logging.error(f"Error during beam analysis: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
