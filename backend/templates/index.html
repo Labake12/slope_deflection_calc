@@ -243,50 +243,67 @@ function displayResults(result) {
     }
 
     const formattedFEM = result.fixed_end_moments.map((fem, index) => {
-        const keys = Object.keys(fem); // Dynamically get span names
-        return `Span ${index + 1}: ${keys[0]} = ${fem[keys[0]]?.toFixed(4) || 0} kNm, 
-            ${keys[1]} = ${fem[keys[1]]?.toFixed(4) || 0} kNm`;
-    }).join('<br>');
-    
-    // const formattedSlopeDeflection = result.slope_deflection_eq && result.slope_deflection_eq.length > 0
-    //     ? result.slope_deflection_eq.map(eq => `<p>${eq}</p>`).join('')
-    //     : "<p>No Slope Deflection Equation found.</p>";
+        const keys = Object.keys(fem);
+        return `<p><strong>Span ${index + 1}</strong>: ${keys[0]} = ${fem[keys[0]]?.toFixed(4) || 0} kNm, 
+                ${keys[1]} = ${fem[keys[1]]?.toFixed(4) || 0} kNm</p>`;
+    }).join('');
 
     const formattedShearForces = result.shear_forces.map((sf) => 
-        `Position: ${sf[0].toFixed(4)} m, Shear Force: ${sf[1].toFixed(4)} kN`
-    ).join('<br>');
+        `<p>Position: <strong>${sf[0].toFixed(2)} m</strong>, Shear Force: <strong>${sf[1].toFixed(4)} kN</strong></p>`
+    ).join('');
 
     const formattedBendingMoments = result.bending_moments.map((bm) => 
-        `Position: ${bm[0].toFixed(4)} m, Bending Moment: ${bm[1].toFixed(4)} kNm`
-    ).join('<br>');
+        `<p>Position: <strong>${bm[0].toFixed(2)} m</strong>, Bending Moment: <strong>${bm[1].toFixed(4)} kNm</strong></p>`
+    ).join('');
 
     const maxBM = result.max_bending_moment 
-    ? `Max Bending Moment: ${result.max_bending_moment.value.toFixed(4)} kNm at ${result.max_bending_moment.position.toFixed(4)} m`
-    : "Max Bending Moment: Not Found";
+        ? `<p><strong>Max Bending Moment:</strong> ${result.max_bending_moment.value.toFixed(4)} kNm at ${result.max_bending_moment.position.toFixed(4)} m</p>`
+        : "<p>Max Bending Moment: Not Found</p>";
 
     document.getElementById('results').innerHTML = `
-        <h2 class="text-xl font-semibold text-gray-800 mb-8">Analysis Results</h2>
-        <div class="container">
-            <p><strong>Fixed End Moments:</strong><br> ${formattedFEM}</p>
-            <p><strong>Theta Values (Slopes):</strong><br> ${result.theta_values?.join(', ') || 'None'}</p>
-            <p><strong>Final Moments:</strong><br> ${formatResults(result.final_moments)}</p>
-            <p><strong>Reactions:</strong><br> ${formatResults(result.reactions)}</p>
-            <p><strong>Shear Forces:</strong><br> ${formattedShearForces}</p>
-            <p><strong>Bending Moments:</strong><br> ${formattedBendingMoments}</p>
-            <p><strong>Maximum Bending Moment:</strong><br> ${maxBM}</p>
-        </div>
-        <div class="mt-4 graph">
-            <h3 class="text-lg font-semibold text-gray-800">Diagrams:</h3>
-            <img src="${result.diagram_path}" alt="Diagrams" class="mt-2 border rounded w-full">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-gray-900">
+            <div class="p-5 bg-white rounded-xl shadow-md">
+                <h3 class="text-lg font-semibold text-pink-500">Fixed End Moments</h3>
+                ${formattedFEM}
+            </div>
+            <div class="p-5 bg-white rounded-xl shadow-md">
+                <h3 class="text-lg font-semibold text-orange-500">Theta Values</h3>
+                ${result.theta_values?.join(', ') || 'None'}
+            </div>
+            <div class="p-5 bg-white rounded-xl shadow-md">
+                <h3 class="text-lg font-semibold text-yellow-500">Final Moments</h3>
+                ${formatResults(result.final_moments)}
+            </div>
+            <div class="p-5 bg-white rounded-xl shadow-md">
+                <h3 class="text-lg font-semibold text-blue-500">Reactions</h3>
+                ${formatResults(result.reactions)}
+            </div>
+            <div class="p-5 bg-white rounded-xl shadow-md">
+                <h3 class="text-lg font-semibold text-blue-500">Shear Forces</h3>
+                ${formattedShearForces}
+            </div>
+            <div class="p-5 bg-white rounded-xl shadow-md">
+                <h3 class="text-lg font-semibold text-green-500">Bending Moments</h3>
+                ${formattedBendingMoments}
+            </div>
+            <div class="p-5 bg-white rounded-xl shadow-md col-span-1 md:col-span-2">
+                <h3 class="text-lg font-semibold text-red-500">Max Bending Moment</h3>
+                ${maxBM}
+            </div>
+            <div class="mt-4 graph">
+                <h3 class="text-lg font-semibold text-gray-800">Diagrams:</h3>
+                <img src="${result.diagram_path}" alt="Diagrams" class="mt-2 border rounded w-full">
+            </div>
         </div>
     `;
 }
+
 
 function formatResults(data) {
     if (!data) return "No data available.";
     if (typeof data === 'object') {
         return Object.entries(data).map(([key, value]) => 
-            `${key}: ${typeof value === 'number' ? value.toFixed(4) : value}`
+            `${key}: ${typeof value === 'number' ? value.toFixed(2) : value}`
         ).join("<br>");
     }
     return data;
