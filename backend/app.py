@@ -92,16 +92,11 @@ def analyze_beam():
         analysis.input_supports(supports)
         analysis.input_spans(spans)
         results = analysis.analyze()
+        # Generate slope-deflection equations
+        slope_deflection_equations = analysis.display_slope_deflection_equations()
 
         max_bm, max_bm_pos = analysis.find_max_bending_moment(results["shear_forces"], results["bending_moments"])
         results["max_bending_moment"] = {"value": max_bm, "position": max_bm_pos}
-        
-        # Generate slope Equations **BEFORE returning results**
-        # slope_deflection = analysis.generate_slope_equations()
-        # results["slope_deflection_eq"] = convert_to_serializable(slope_deflection)
-
-        # # Debugging output
-        # print("Debug: Slope Deflection Equations Generated", slope_deflection)
         
         # Save diagram and return results
         diagram_path = os.path.join(IMAGE_DIR, 'diagram.png')
@@ -121,13 +116,13 @@ def analyze_beam():
         return jsonify({
             "status": "success",
             "fixed_end_moments": fixed_end_moments_result,
-            # "slope_deflection_equations": results["slope_deflection_eq"],
             "theta_values": convert_to_serializable(results["theta_values"]),
             "final_moments": convert_to_serializable(results["final_moments"]),
             "reactions": convert_to_serializable(results["reactions"]),
             "shear_forces": convert_to_serializable(results["shear_forces"]),
             "bending_moments": convert_to_serializable(results["bending_moments"]),
             "max_bending_moment": results["max_bending_moment"],
+            "slope_deflection_equations": slope_deflection_equations,
             "diagram_path": f"static/images/diagram.png"
         })
     

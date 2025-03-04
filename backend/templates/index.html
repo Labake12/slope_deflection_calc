@@ -78,9 +78,12 @@
                             <option value="hinged">Hinged</option>
                             <option value="fixed">Fixed</option>
                             <option value="roller">Roller</option>
+                            <option value="none">None</option>
                         </select>
                         <label class="block text-gray-600 mt-2">Position (in meters):</label>
                         <input type="number" class="border rounded w-full p-2 support-position" step="0.1" min="0" required>
+                        <label class="block text-gray-600 mt-2">Settlement (in meters):</label>
+                        <input type="number" class="border rounded w-full p-2 support-settlement" step="0.001" value="0">
                     </div>
                 `;
             }
@@ -175,7 +178,9 @@
         document.querySelectorAll('#support-fields > div').forEach((supportDiv) => {
             const type = supportDiv.querySelector('.support-type').value;
             const position = parseFloat(supportDiv.querySelector('.support-position').value);
-            supports.push({ type, position });
+            const settlement = parseFloat(supportDiv.querySelector('.support-settlement').value); // get settlement value.
+            supports.push({ type, position, settlement });
+            // supports.push({ type, position });
         });
 
         // Gather spans data with validation
@@ -260,12 +265,22 @@ function displayResults(result) {
         ? `<p><strong>Max Bending Moment:</strong> ${result.max_bending_moment.value.toFixed(4)} kNm at ${result.max_bending_moment.position.toFixed(4)} m</p>`
         : "<p>Max Bending Moment: Not Found</p>";
 
+    // Format Slope-Deflection Equations
+    const formattedSlopeEquations = result.slope_deflection_equations
+        ? result.slope_deflection_equations.map(eq => `<p>${eq}</p>`).join('')
+        : "<p>No slope-deflection equations available.</p>";
+
+
     document.getElementById('results').innerHTML = `
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-gray-900">
             <div class="p-5 bg-white rounded-xl shadow-md">
                 <h3 class="text-lg font-semibold text-pink-500">Fixed End Moments</h3>
                 ${formattedFEM}
             </div>
+            <div class="p-5 bg-white rounded-xl shadow-md">
+                <h3 class="text-lg font-semibold text-purple-500">Slope-Deflection Equations</h3>
+                ${formattedSlopeEquations}
+            </div>
             <div class="p-5 bg-white rounded-xl shadow-md">
                 <h3 class="text-lg font-semibold text-orange-500">Theta Values</h3>
                 ${result.theta_values?.join(', ') || 'None'}
