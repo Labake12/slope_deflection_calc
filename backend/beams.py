@@ -137,11 +137,11 @@ class BeamAnalysis:
 
             # Construct equation strings
             eq1 = (
-                f"{span_name_forward}: M = {m_fab:.2f} + (2*{ei:.2f}/{l:.2f}) * (2*({theta_a:.4f}) + ({theta_b:.4f})) "
+                f"{span_name_forward}: M = {m_fab:.2f} + (2*{ei:.2f}/{l:.2f}) * (2*({theta_a:.2f}) + ({theta_b:.2f})) "
                 f"= {m_ab:.2f} kNm"
             )
             eq2 = (
-                f"{span_name_backward}: M = {m_fba:.2f} + (2*{ei:.2f}/{l:.2f}) * (({theta_a:.4f}) + 2*({theta_b:.4f})) "
+                f"{span_name_backward}: M = {m_fba:.2f} + (2*{ei:.2f}/{l:.2f}) * (({theta_a:.2f}) + 2*({theta_b:.2f})) "
                 f"= {m_ba:.2f} kNm"
             )
 
@@ -189,6 +189,7 @@ class BeamAnalysis:
         for i in range(start_index, len(self.spans)):
             l = self.supports[i + 1]["position"] - self.supports[i]["position"]
             ei = self.spans[i]["EI"]
+            delta = self.supports[i + 1].get("settlement", 0) - self.supports[i].get("settlement", 0)
 
             start_letter = chr(65 + i)
             end_letter = chr(65 + i + 1)
@@ -208,7 +209,7 @@ class BeamAnalysis:
             if self.supports[i]["type"] in ("hinged", "roller"):
                 current_idx = unknown_indices.index(i)
                 coeff_matrix[current_idx, current_idx] += 4 * ei / l
-                constants[current_idx] -= m_fab
+                constants[current_idx] -= m_fab - (6 * ei * delta / l**2)
 
                 if self.supports[i + 1]["type"] in ("hinged", "roller"):
                     next_idx = unknown_indices.index(i + 1)
@@ -218,7 +219,7 @@ class BeamAnalysis:
             if self.supports[i + 1]["type"] in ("hinged", "roller"):
                 next_idx = unknown_indices.index(i + 1)
                 coeff_matrix[next_idx, next_idx] += 4 * ei / l
-                constants[next_idx] -= m_fba
+                constants[next_idx] -= m_fba - (6 * ei * delta / l**2)
 
         print("\nFinal Coefficient Matrix:")
         print(coeff_matrix)
@@ -316,6 +317,7 @@ class BeamAnalysis:
             loads = self.spans[i]["loads"]
             start_support = self.supports[i]["type"]
             end_support = self.supports[i + 1]["type"]
+            
 
             start_letter = chr(65 + i)
             end_letter = chr(65 + i + 1)
@@ -442,15 +444,30 @@ class BeamAnalysis:
     def calculate_bending_moment(self, shear_forces):
         """Calculate bending moments at critical points."""
         bending_moments = []
-        bm = 0
+        
+        # Determine the initial moment dynamically
+        if self.supports and len(self.supports) > 1:
+            start_letter = chr(65)  # 'A'
+            end_letter = chr(66)  # 'B'
+            span_name_forward = f"M_{start_letter}{end_letter}"
+            bm = self.final_moments.get(span_name_forward, 0)
+        else:
+            bm = 0  # Default to zero if spans are not properly defined
+        
         positions = [pos for pos, _ in shear_forces]
-        for i in range(len(shear_forces)):
-            pos, sf = shear_forces[i]
-            if i > 0:
-                prev_pos, prev_sf = shear_forces[i - 1]
-                area = (sf + prev_sf) * (pos - prev_pos) / 2
-                bm += area
+
+        # Handle the first point separately to add the initial moment.
+        if shear_forces:
+            pos, sf = shear_forces[0]
             bending_moments.append((pos, bm))
+
+        for i in range(1, len(shear_forces)):
+            pos, sf = shear_forces[i]
+            prev_pos, prev_sf = shear_forces[i - 1]
+            area = (sf + prev_sf) * (pos - prev_pos) / 2
+            bm += area
+            bending_moments.append((pos, bm))
+
         print("Final Bending Moments:", bending_moments)
         return bending_moments
 
